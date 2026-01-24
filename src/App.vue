@@ -1,0 +1,880 @@
+﻿<template>
+  <a-layout class="app-shell">
+    <a-layout-header class="topbar">
+      <div class="brand">Lyric Timeline Editor</div>
+      <div class="actions">
+        <a-button type="primary" @click="importVisible = true">Import SRT/LRC</a-button>
+        <a-button @click="exportVisible = true">Export</a-button>
+      </div>
+    </a-layout-header>
+    <a-layout class="main">
+      <a-layout-content class="timeline-pane">
+        <div class="timeline-header">
+          <div class="control-row">
+            <div class="play-controls">
+              <a-button size="small" type="primary" @click="togglePlay">
+                {{ isPlaying ? 'Pause' : 'Play' }}
+              </a-button>
+              <a-button size="small" @click="stopPlay">Stop</a-button>
+              <span class="play-time">{{ formatClock(playheadMs) }}</span>
+              <span class="play-lyric">{{ activePlayText || '-' }}</span>
+            </div>
+            <div class="snap-controls">
+              <span>Snap {{ snap.grid }}ms</span>
+              <a-button size="small" @click="resolveOverlaps">Resolve Overlap</a-button>
+            </div>
+            <div class="zoom-controls">
+              <span>Zoom</span>
+              <a-slider
+                v-model="zoomLevel"
+                :min="20"
+                :max="160"
+                :step="5"
+                :style="{ width: '160px' }"
+              />
+            </div>
+          </div>
+          <div ref="headerScrollRef" class="scale-scroll" @scroll="onHeaderScroll">
+            <div class="scale-track" :style="{ width: `${timelineWidth}px` }">
+              <div
+                v-for="tick in ticks"
+                :key="tick"
+                class="scale-tick"
+                :class="{ major: tick % 1000 === 0 }"
+                :style="{ left: `${tick * pxPerMs}px` }"
+              >
+                <span v-if="tick % 1000 === 0" class="scale-label">
+                  {{ formatMark(tick) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div ref="timelineScrollRef" class="timeline-scroll" @scroll="onTimelineScroll">
+          <div
+            ref="trackRef"
+            class="timeline-track"
+            :style="{ width: `${timelineWidth}px`, '--grid-step': `${gridStepPx}px` }"
+            @pointerdown="startBoxSelect"
+            @dblclick="onTrackDoubleClick"
+          >
+            <div
+              v-for="segment in segments"
+              :key="segment.id"
+              class="segment"
+              :class="{
+                'is-selected': selectionIds.has(segment.id),
+                'is-playing': activePlayId === segment.id,
+              }"
+              :style="segmentStyle(segment)"
+              @pointerdown="startDrag($event, segment, 'move')"
+            >
+              <span>{{ segment.text }}</span>
+              <span
+                class="handle start"
+                @pointerdown.stop.prevent="startDrag($event, segment, 'resize-start')"
+              ></span>
+              <span
+                class="handle end"
+                @pointerdown.stop.prevent="startDrag($event, segment, 'resize-end')"
+              ></span>
+            </div>
+            <div v-if="boxState.active" class="selection-box" :style="boxStyle"></div>
+            <div
+              class="playhead"
+              :style="{ left: `${playheadX}px` }"
+              @pointerdown.stop="startPlayheadDrag"
+            ></div>
+          </div>
+        </div>
+      </a-layout-content>
+      <a-layout-sider class="side" width="320">
+        <div class="panel">
+          <h3>Segment</h3>
+          <a-form layout="vertical" :disabled="!activeSegment">
+            <a-form-item label="Start (sec)">
+              <a-input-number v-model="draft.startSec" :min="0" :step="0.01" />
+            </a-form-item>
+            <a-form-item label="End (sec)">
+              <a-input-number v-model="draft.endSec" :min="0" :step="0.01" />
+            </a-form-item>
+            <a-form-item label="Text">
+              <a-textarea v-model="draft.text" :auto-size="{ minRows: 4, maxRows: 8 }" />
+            </a-form-item>
+            <a-button type="primary" long @click="applyDraft">Apply</a-button>
+          </a-form>
+        </div>
+      </a-layout-sider>
+    </a-layout>
+  </a-layout>
+  <a-modal
+    v-model:visible="importVisible"
+    title="Import SRT/LRC"
+    :ok-text="'Import'"
+    :width="720"
+    @ok="applyImport"
+  >
+    <a-space direction="vertical" size="medium" fill>
+      <a-upload
+        :auto-upload="false"
+        :show-file-list="false"
+        accept=".srt,.lrc,.txt"
+        @change="handleFile"
+      >
+        <a-button>Choose File</a-button>
+      </a-upload>
+      <a-textarea
+        v-model="importText"
+        placeholder="Paste SRT/LRC content here..."
+        :auto-size="{ minRows: 10, maxRows: 18 }"
+      />
+      <a-alert type="info" show-icon>
+        <template #title>Tips</template>
+        <template #content>
+          支援 SRT 及 LRC 格式。若同時有檔案與貼上內容，以貼上內容為主。
+        </template>
+      </a-alert>
+    </a-space>
+  </a-modal>
+  <a-modal v-model:visible="exportVisible" title="Export" :width="720">
+    <a-space direction="vertical" size="medium" fill>
+      <a-select v-model="exportFormat" :style="{ width: '160px' }">
+        <a-option value="srt">SRT</a-option>
+        <a-option value="lrc">LRC</a-option>
+      </a-select>
+      <a-textarea
+        :model-value="exportText"
+        :auto-size="{ minRows: 10, maxRows: 18 }"
+        readonly
+      />
+    </a-space>
+    <template #footer>
+      <a-space>
+        <a-button @click="exportVisible = false">Close</a-button>
+        <a-button @click="copyExport">Copy</a-button>
+        <a-button type="primary" @click="downloadExport">Download</a-button>
+      </a-space>
+    </template>
+  </a-modal>
+</template>
+
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+
+type Segment = {
+  id: string
+  start: number
+  end: number
+  text: string
+  color?: string
+}
+
+type DragMode = 'move' | 'resize-start' | 'resize-end'
+
+const segments = ref<Segment[]>([
+  { id: 'seg-1', start: 1500, end: 5200, text: '第一句歌詞', color: '#2c2f33' },
+  { id: 'seg-2', start: 5200, end: 9800, text: '第二句歌詞', color: '#db4c3f' },
+  { id: 'seg-3', start: 10500, end: 13800, text: '第三句歌詞', color: '#2c2f33' },
+])
+const pxPerMs = ref(0.08)
+const zoomLevel = ref(80)
+const minDuration = 300
+const selectionIds = ref(new Set<string>())
+const trackRef = ref<HTMLElement | null>(null)
+const timelineScrollRef = ref<HTMLElement | null>(null)
+const headerScrollRef = ref<HTMLElement | null>(null)
+const snap = reactive({ grid: 100 })
+const importVisible = ref(false)
+const importText = ref('')
+const exportVisible = ref(false)
+const exportFormat = ref<'srt' | 'lrc'>('srt')
+const undoStack = ref<Segment[][]>([])
+const redoStack = ref<Segment[][]>([])
+let dragSnapshot: Segment[] | null = null
+let hasPendingDrag = false
+const playheadMs = ref(0)
+const isPlaying = ref(false)
+let playLastTs = 0
+let playRaf = 0
+
+const tickStepMs = computed(() => {
+  const target = 100 / pxPerMs.value
+  const options = [500, 1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000]
+  return options.find((step) => step >= target) ?? options[options.length - 1]
+})
+
+const ticks = computed(() => {
+  const durationMs = Math.ceil(timelineWidth.value / pxPerMs.value)
+  const result: number[] = []
+  for (let t = 0; t <= durationMs; t += tickStepMs.value) {
+    result.push(t)
+  }
+  return result
+})
+
+const gridStepPx = computed(() => {
+  const step = pxPerMs.value * 1000
+  return Math.max(24, Math.round(step))
+})
+
+const playheadX = computed(() => playheadMs.value * pxPerMs.value)
+const activePlaySegment = computed(() =>
+  segments.value.find((segment) => playheadMs.value >= segment.start && playheadMs.value <= segment.end),
+)
+const activePlayId = computed(() => activePlaySegment.value?.id ?? '')
+const activePlayText = computed(() => activePlaySegment.value?.text ?? '')
+
+const timelineWidth = computed(() => {
+  const maxEnd = Math.max(0, ...segments.value.map((segment) => segment.end))
+  const base = maxEnd * pxPerMs.value + 400
+  return Math.max(900, Math.round(base))
+})
+
+const timelineDuration = computed(() =>
+  Math.max(0, ...segments.value.map((segment) => segment.end)),
+)
+const formatMark = (ms: number) => {
+  const totalSeconds = Math.floor(ms / 1000)
+  const mm = Math.floor(totalSeconds / 60)
+  const ss = totalSeconds % 60
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+}
+
+const formatClock = (ms: number) => {
+  const totalSeconds = Math.floor(ms / 1000)
+  const mm = Math.floor(totalSeconds / 60)
+  const ss = totalSeconds % 60
+  const cs = Math.floor((ms % 1000) / 10)
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}.${String(
+    cs,
+  ).padStart(2, '0')}`
+}
+
+const segmentStyle = (segment: Segment) => {
+  const left = segment.start * pxPerMs.value
+  const width = Math.max((segment.end - segment.start) * pxPerMs.value, 16)
+  return {
+    left: `${left}px`,
+    width: `${width}px`,
+    background: segment.color ?? '#2c2f33',
+  }
+}
+
+watch(
+  zoomLevel,
+  (value) => {
+    pxPerMs.value = value / 1000
+  },
+  { immediate: true },
+)
+
+const activeSegment = computed(() => {
+  const [first] = selectionIds.value
+  return segments.value.find((segment) => segment.id === first) ?? null
+})
+
+const draft = reactive({
+  startSec: 0,
+  endSec: 0,
+  text: '',
+})
+
+watch(
+  activeSegment,
+  (segment) => {
+    if (!segment) {
+      draft.startSec = 0
+      draft.endSec = 0
+      draft.text = ''
+      return
+    }
+    draft.startSec = segment.start / 1000
+    draft.endSec = segment.end / 1000
+    draft.text = segment.text
+  },
+  { immediate: true },
+)
+
+const applyDraft = () => {
+  const segment = activeSegment.value
+  if (!segment) return
+  pushHistorySnapshot(cloneSegments())
+  const startMs = Math.round(draft.startSec * 1000)
+  const endMs = Math.round(draft.endSec * 1000)
+  const nextStart = Math.max(0, Math.min(startMs, endMs - minDuration))
+  const nextEnd = Math.max(nextStart + minDuration, endMs)
+  updateSegment(segment.id, { start: nextStart, end: nextEnd, text: draft.text })
+}
+
+const cloneSegments = () => segments.value.map((segment) => ({ ...segment }))
+
+const updateSegment = (id: string, patch: Partial<Segment>) => {
+  segments.value = segments.value.map((segment) =>
+    segment.id === id ? { ...segment, ...patch } : segment,
+  )
+}
+
+const resolveOverlaps = () => {
+  if (segments.value.length < 2) return
+  pushHistorySnapshot(cloneSegments())
+  const ordered = [...segments.value].sort((a, b) => a.start - b.start)
+  let cursor = 0
+  const next = ordered.map((segment) => {
+    const duration = Math.max(minDuration, segment.end - segment.start)
+    const start = Math.max(cursor, segment.start)
+    const end = start + duration
+    cursor = end
+    return { ...segment, start, end }
+  })
+  segments.value = next
+}
+
+const setSelection = (id: string, additive: boolean) => {
+  const next = new Set(selectionIds.value)
+  if (additive) {
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+  } else {
+    next.clear()
+    next.add(id)
+  }
+  selectionIds.value = next
+}
+
+const clearSelection = () => {
+  selectionIds.value = new Set<string>()
+}
+
+const snapValue = (value: number) => {
+  return Math.round(value / snap.grid) * snap.grid
+}
+
+const dragState = ref<{
+  mode: DragMode
+  originX: number
+  items: Array<{ id: string; start: number; end: number }>
+} | null>(null)
+
+const startDrag = (event: PointerEvent, segment: Segment, mode: DragMode) => {
+  if (event.button !== 0) return
+  const wasSelected = selectionIds.value.has(segment.id)
+  if (event.shiftKey) {
+    setSelection(segment.id, true)
+  } else if (!wasSelected) {
+    setSelection(segment.id, false)
+  }
+  const ids = Array.from(selectionIds.value)
+  const targets = ids.length > 0 ? ids : [segment.id]
+  const items = segments.value
+    .filter((item) => targets.includes(item.id))
+    .map((item) => ({ id: item.id, start: item.start, end: item.end }))
+  dragState.value = {
+    mode,
+    originX: event.clientX,
+    items,
+  }
+  dragSnapshot = cloneSegments()
+  hasPendingDrag = false
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', onPointerUp)
+}
+
+const onPointerMove = (event: PointerEvent) => {
+  if (!dragState.value) return
+  const { mode, originX, items } = dragState.value
+  const deltaMs = (event.clientX - originX) / pxPerMs.value
+  if (mode === 'move') {
+    const anchor = items[0]
+    const targetStart = snapValue(anchor.start + deltaMs)
+    const rawOffset = targetStart - anchor.start
+    const minStart = Math.min(...items.map((item) => item.start))
+    const offset = Math.max(rawOffset, -minStart)
+    items.forEach((item) => {
+      updateSegment(item.id, {
+        start: item.start + offset,
+        end: item.end + offset,
+      })
+    })
+    hasPendingDrag = true
+    return
+  }
+  if (mode === 'resize-start') {
+    const item = items[0]
+    const snapped = snapValue(item.start + deltaMs)
+    const nextStart = Math.max(0, Math.min(snapped, item.end - minDuration))
+    updateSegment(item.id, { start: nextStart })
+    hasPendingDrag = true
+    return
+  }
+  const item = items[0]
+  const snapped = snapValue(item.end + deltaMs)
+  const nextEnd = Math.max(item.start + minDuration, snapped)
+  updateSegment(item.id, { end: nextEnd })
+  hasPendingDrag = true
+}
+
+const onPointerUp = () => {
+  dragState.value = null
+  boxState.active = false
+  if (hasPendingDrag && dragSnapshot) {
+    pushHistorySnapshot(dragSnapshot)
+  }
+  dragSnapshot = null
+  hasPendingDrag = false
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+})
+
+let syncingScroll = false
+
+const onTimelineScroll = () => {
+  if (syncingScroll) return
+  if (!timelineScrollRef.value || !headerScrollRef.value) return
+  syncingScroll = true
+  headerScrollRef.value.scrollLeft = timelineScrollRef.value.scrollLeft
+  syncingScroll = false
+}
+
+const onHeaderScroll = () => {
+  if (syncingScroll) return
+  if (!timelineScrollRef.value || !headerScrollRef.value) return
+  syncingScroll = true
+  timelineScrollRef.value.scrollLeft = headerScrollRef.value.scrollLeft
+  syncingScroll = false
+}
+
+const boxState = reactive({
+  active: false,
+  startX: 0,
+  startY: 0,
+  currentX: 0,
+  currentY: 0,
+})
+const boxPending = ref(false)
+const boxDragThreshold = 4
+
+const boxStyle = computed(() => {
+  const left = Math.min(boxState.startX, boxState.currentX)
+  const top = Math.min(boxState.startY, boxState.currentY)
+  const width = Math.abs(boxState.currentX - boxState.startX)
+  const height = Math.abs(boxState.currentY - boxState.startY)
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${width}px`,
+    height: `${height}px`,
+  }
+})
+
+const startBoxSelect = (event: PointerEvent) => {
+  if (event.button !== 0) return
+  if (event.target !== trackRef.value) return
+  updatePlayheadFromEvent(event)
+  const rect = trackRef.value.getBoundingClientRect()
+  const localX = event.clientX - rect.left
+  const localY = event.clientY - rect.top
+  boxState.startX = localX
+  boxState.startY = localY
+  boxState.currentX = localX
+  boxState.currentY = localY
+  boxPending.value = true
+  window.addEventListener('pointermove', onBoxMove)
+  window.addEventListener('pointerup', onBoxUp)
+}
+
+const startPlayheadDrag = (event: PointerEvent) => {
+  if (event.button !== 0) return
+  updatePlayheadFromEvent(event)
+  window.addEventListener('pointermove', onPlayheadMove)
+  window.addEventListener('pointerup', onPlayheadUp)
+}
+
+const onPlayheadMove = (event: PointerEvent) => {
+  updatePlayheadFromEvent(event)
+}
+
+const onPlayheadUp = () => {
+  window.removeEventListener('pointermove', onPlayheadMove)
+  window.removeEventListener('pointerup', onPlayheadUp)
+}
+
+const updatePlayheadFromEvent = (event: PointerEvent) => {
+  if (!trackRef.value) return
+  const rect = trackRef.value.getBoundingClientRect()
+  const localX = event.clientX - rect.left
+  const clampedX = Math.max(0, Math.min(localX, timelineWidth.value))
+  const ms = clampedX / pxPerMs.value
+  playheadMs.value = snapValue(ms)
+  if (isPlaying.value) {
+    ensurePlayheadInView()
+  }
+}
+
+const onTrackDoubleClick = (event: MouseEvent) => {
+  if (!trackRef.value) return
+  const rect = trackRef.value.getBoundingClientRect()
+  const localX = event.clientX - rect.left
+  const start = snapValue(localX / pxPerMs.value)
+  const end = start + Math.max(minDuration, 1200)
+  const nextId = `seg-${Date.now()}`
+  pushHistorySnapshot(cloneSegments())
+  segments.value = [
+    ...segments.value,
+    { id: nextId, start, end, text: 'New line', color: '#2c2f33' },
+  ]
+  selectionIds.value = new Set([nextId])
+}
+
+const onBoxMove = (event: PointerEvent) => {
+  if (!trackRef.value) return
+  const rect = trackRef.value.getBoundingClientRect()
+  boxState.currentX = event.clientX - rect.left
+  boxState.currentY = event.clientY - rect.top
+  if (boxPending.value && !boxState.active) {
+    const dx = boxState.currentX - boxState.startX
+    const dy = boxState.currentY - boxState.startY
+    const distance = Math.hypot(dx, dy)
+    if (distance < boxDragThreshold) return
+    boxState.active = true
+    boxPending.value = false
+    clearSelection()
+  }
+  if (!boxState.active) return
+  const left = Math.min(boxState.startX, boxState.currentX)
+  const right = Math.max(boxState.startX, boxState.currentX)
+  const top = Math.min(boxState.startY, boxState.currentY)
+  const bottom = Math.max(boxState.startY, boxState.currentY)
+  const next = new Set<string>()
+  segments.value.forEach((segment) => {
+    const segLeft = segment.start * pxPerMs.value
+    const segRight = segment.end * pxPerMs.value
+    const segTop = 48
+    const segBottom = segTop + 64
+    const intersects =
+      segLeft < right && segRight > left && segTop < bottom && segBottom > top
+    if (intersects) next.add(segment.id)
+  })
+  selectionIds.value = next
+}
+
+const onBoxUp = () => {
+  boxState.active = false
+  boxPending.value = false
+  window.removeEventListener('pointermove', onBoxMove)
+  window.removeEventListener('pointerup', onBoxUp)
+}
+
+const handleFile = async (info: unknown) => {
+  const raw =
+    Array.isArray(info) && info.length > 0
+      ? info[0]
+      : (info as { file?: { file?: File; originFile?: File } }).file ??
+        (info as { fileList?: Array<{ file?: File; originFile?: File }> }).fileList?.[0]
+  if (!raw) return
+  const file =
+    raw instanceof File
+      ? raw
+      : raw.file instanceof File
+        ? raw.file
+        : raw.originFile instanceof File
+          ? raw.originFile
+          : null
+  if (!file) return
+  const text = await file.text()
+  importText.value = text
+}
+
+const applyImport = () => {
+  const text = importText.value.trim()
+  if (!text) return
+  const parsed = text.includes('-->')
+    ? parseSrt(text)
+    : text.includes('[') && text.includes(']')
+      ? parseLrc(text)
+      : []
+  if (parsed.length === 0) return
+  pushHistorySnapshot(cloneSegments())
+  segments.value = parsed
+  selectionIds.value = new Set([parsed[0].id])
+  importVisible.value = false
+}
+
+const exportText = computed(() => {
+  const ordered = [...segments.value].sort((a, b) => a.start - b.start)
+  return exportFormat.value === 'srt' ? buildSrt(ordered) : buildLrc(ordered)
+})
+
+const copyExport = async () => {
+  try {
+    await navigator.clipboard.writeText(exportText.value)
+  } catch {
+    // ignore clipboard errors
+  }
+}
+
+const downloadExport = () => {
+  const blob = new Blob([exportText.value], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `lyrics.${exportFormat.value}`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+const pushHistorySnapshot = (snapshot: Segment[]) => {
+  undoStack.value.push(snapshot)
+  redoStack.value = []
+}
+
+const undo = () => {
+  if (undoStack.value.length === 0) return
+  const current = cloneSegments()
+  const previous = undoStack.value.pop()
+  if (!previous) return
+  redoStack.value.push(current)
+  segments.value = previous
+}
+
+const redo = () => {
+  if (redoStack.value.length === 0) return
+  const current = cloneSegments()
+  const next = redoStack.value.pop()
+  if (!next) return
+  undoStack.value.push(current)
+  segments.value = next
+}
+
+const removeSelected = () => {
+  if (selectionIds.value.size === 0) return
+  pushHistorySnapshot(cloneSegments())
+  segments.value = segments.value.filter((segment) => !selectionIds.value.has(segment.id))
+  selectionIds.value = new Set<string>()
+}
+
+const onKeyDown = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement | null
+  const tag = target?.tagName?.toLowerCase()
+  if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return
+  const key = event.key.toLowerCase()
+  const isMeta = event.metaKey || event.ctrlKey
+  if (key === '=' || key === '+') {
+    event.preventDefault()
+    zoomLevel.value = Math.min(160, zoomLevel.value + 10)
+    return
+  }
+  if (key === '-' || key === '_') {
+    event.preventDefault()
+    zoomLevel.value = Math.max(20, zoomLevel.value - 10)
+    return
+  }
+  if (key === ' ') {
+    event.preventDefault()
+    togglePlay()
+    return
+  }
+  if (isMeta && key === 'z') {
+    event.preventDefault()
+    if (event.shiftKey) {
+      redo()
+    } else {
+      undo()
+    }
+    return
+  }
+  if (key === 'delete' || key === 'backspace') {
+    event.preventDefault()
+    removeSelected()
+  }
+}
+
+onMounted(() => {
+  pushHistorySnapshot(cloneSegments())
+  window.addEventListener('keydown', onKeyDown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeyDown)
+  stopPlay()
+})
+
+const tickPlay = (ts: number) => {
+  if (!isPlaying.value) return
+  if (!playLastTs) playLastTs = ts
+  const delta = ts - playLastTs
+  playLastTs = ts
+  const next = playheadMs.value + delta
+  const max = timelineDuration.value
+  if (next >= max) {
+    playheadMs.value = max
+    stopPlay()
+    return
+  }
+  playheadMs.value = next
+  ensurePlayheadInView()
+  playRaf = requestAnimationFrame(tickPlay)
+}
+
+const togglePlay = () => {
+  if (isPlaying.value) {
+    stopPlay()
+    return
+  }
+  isPlaying.value = true
+  playLastTs = 0
+  playRaf = requestAnimationFrame(tickPlay)
+}
+
+const stopPlay = () => {
+  isPlaying.value = false
+  playLastTs = 0
+  if (playRaf) cancelAnimationFrame(playRaf)
+  playRaf = 0
+}
+
+const ensurePlayheadInView = () => {
+  if (!timelineScrollRef.value) return
+  const view = timelineScrollRef.value
+  const left = view.scrollLeft
+  const right = left + view.clientWidth
+  const x = playheadX.value
+  const padding = 80
+  if (x < left + padding) {
+    view.scrollLeft = Math.max(0, x - padding)
+  } else if (x > right - padding) {
+    view.scrollLeft = x - view.clientWidth + padding
+  }
+}
+
+const buildSrt = (items: Segment[]) => {
+  return items
+    .map((segment, index) => {
+      const start = formatSrtTime(segment.start)
+      const end = formatSrtTime(segment.end)
+      return `${index + 1}\n${start} --> ${end}\n${segment.text}\n`
+    })
+    .join('\n')
+    .trim()
+}
+
+const formatSrtTime = (ms: number) => {
+  const hh = Math.floor(ms / 3600000)
+  const mm = Math.floor((ms % 3600000) / 60000)
+  const ss = Math.floor((ms % 60000) / 1000)
+  const mss = Math.floor(ms % 1000)
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(
+    ss,
+  ).padStart(2, '0')},${String(mss).padStart(3, '0')}`
+}
+
+const buildLrc = (items: Segment[]) => {
+  return items
+    .map((segment) => `${formatLrcTime(segment.start)} ${segment.text}`)
+    .join('\n')
+    .trim()
+}
+
+const formatLrcTime = (ms: number) => {
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  const centis = Math.floor((ms % 1000) / 10)
+  return `[${String(minutes).padStart(2, '0')}:${String(seconds).padStart(
+    2,
+    '0',
+  )}.${String(centis).padStart(2, '0')}]`
+}
+
+const parseSrt = (content: string): Segment[] => {
+  const blocks = content
+    .replace(/\r/g, '')
+    .split('\n\n')
+    .map((block) => block.trim())
+    .filter(Boolean)
+  const result: Segment[] = []
+  blocks.forEach((block, index) => {
+    const lines = block.split('\n').map((line) => line.trim())
+    const timeLine = lines.find((line) => line.includes('-->'))
+    if (!timeLine) return
+    const [startRaw, endRaw] = timeLine.split('-->').map((part) => part.trim())
+    const start = parseSrtTime(startRaw)
+    const end = parseSrtTime(endRaw)
+    const textLines = lines.filter((line) => !line.includes('-->') && !/^\d+$/.test(line))
+    const text = textLines.join(' ')
+    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return
+    result.push({
+      id: `srt-${index}-${start}`,
+      start,
+      end,
+      text,
+      color: index % 2 === 0 ? '#2c2f33' : '#db4c3f',
+    })
+  })
+  return result
+}
+
+const parseSrtTime = (raw: string) => {
+  const match = raw.match(/(\d{2}):(\d{2}):(\d{2}),(\d{1,3})/)
+  if (!match) return Number.NaN
+  const [, hh, mm, ss, ms] = match
+  return (
+    Number(hh) * 3600000 +
+    Number(mm) * 60000 +
+    Number(ss) * 1000 +
+    Number(ms.padEnd(3, '0'))
+  )
+}
+
+const parseLrc = (content: string): Segment[] => {
+  const lines = content.replace(/\r/g, '').split('\n')
+  const rows: Array<{ time: number; text: string }> = []
+  lines.forEach((line) => {
+    const matches = [...line.matchAll(/\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g)]
+    if (matches.length === 0) return
+    const lyric = line.replace(/\[.*?\]/g, '').trim()
+    matches.forEach((match) => {
+      const [, mm, ss, ms = '0'] = match
+      const time = parseLrcTime(mm, ss, ms)
+      rows.push({ time, text: lyric })
+    })
+  })
+  rows.sort((a, b) => a.time - b.time)
+  const segments: Segment[] = []
+  rows.forEach((row, index) => {
+    const next = rows[index + 1]
+    const end = next ? Math.max(row.time + minDuration, next.time) : row.time + 2000
+    segments.push({
+      id: `lrc-${index}-${row.time}`,
+      start: row.time,
+      end,
+      text: row.text || `Line ${index + 1}`,
+      color: index % 2 === 0 ? '#2c2f33' : '#db4c3f',
+    })
+  })
+  return segments
+}
+
+const parseLrcTime = (mm: string, ss: string, fraction: string) => {
+  const minutes = Number(mm)
+  const seconds = Number(ss)
+  const msRaw = fraction.trim()
+  const ms =
+    msRaw.length === 0
+      ? 0
+      : msRaw.length === 1
+        ? Number(msRaw) * 100
+        : msRaw.length === 2
+          ? Number(msRaw) * 10
+          : Number(msRaw.slice(0, 3))
+  return minutes * 60000 + seconds * 1000 + ms
+}
+</script>
+

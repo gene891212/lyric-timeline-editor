@@ -1,0 +1,256 @@
+:root {
+  color-scheme: light;
+  font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+  background: #f6f2ea;
+  color: #1f2329;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #f8f1df 0%, #f3eee6 40%, #ede7dd 100%);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 64px;
+  background: linear-gradient(90deg, #131415 0%, #2d2f33 100%);
+  color: #fef6e7;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.main {
+  padding: 24px;
+  gap: 24px;
+}
+
+.timeline-pane {
+  background: #fff7eb;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(31, 35, 41, 0.08);
+  min-height: 520px;
+  position: relative;
+  overflow: hidden;
+}
+
+.timeline-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #6b6f76;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(31, 35, 41, 0.08);
+}
+
+.scale-scroll {
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: none;
+}
+
+.scale-scroll::-webkit-scrollbar {
+  height: 0;
+}
+
+.scale-track {
+  position: relative;
+  height: 24px;
+  padding-left: 24px;
+}
+
+.scale-tick {
+  position: absolute;
+  top: 4px;
+  width: 1px;
+  height: 8px;
+  background: rgba(31, 35, 41, 0.35);
+}
+
+.scale-tick.major {
+  height: 14px;
+  background: rgba(31, 35, 41, 0.6);
+}
+
+.scale-label {
+  position: absolute;
+  top: 14px;
+  left: 4px;
+  font-size: 11px;
+}
+
+.snap-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.play-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.play-time {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.play-lyric {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timeline-scroll {
+  margin-top: 16px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.timeline-track {
+  position: relative;
+  height: 220px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(31, 35, 41, 0.06) 0,
+    rgba(31, 35, 41, 0.06) 1px,
+    transparent 1px,
+    transparent var(--grid-step, 80px)
+  );
+  border-radius: 12px;
+  padding: 24px;
+  overflow: hidden;
+  user-select: none;
+}
+
+.segment {
+  position: absolute;
+  top: 48px;
+  height: 64px;
+  background: #2c2f33;
+  color: #fef6e7;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-weight: 500;
+  box-shadow: 0 8px 18px rgba(28, 28, 32, 0.2);
+  cursor: grab;
+}
+
+.segment.is-selected {
+  outline: 2px solid #ffb547;
+  outline-offset: 2px;
+}
+
+.segment.is-playing {
+  outline: 2px solid #63c6ff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(99, 198, 255, 0.3), 0 8px 18px rgba(28, 28, 32, 0.2);
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: #ffb547;
+  box-shadow: 0 0 12px rgba(255, 181, 71, 0.9);
+  cursor: ew-resize;
+}
+
+.selection-box {
+  position: absolute;
+  border: 2px dashed rgba(255, 181, 71, 0.9);
+  background: rgba(255, 181, 71, 0.15);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.handle {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  cursor: ew-resize;
+}
+
+.handle.start {
+  left: 6px;
+}
+
+.handle.end {
+  right: 6px;
+}
+
+.side {
+  background: transparent;
+}
+
+.panel {
+  background: #1f2329;
+  color: #fef6e7;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(31, 35, 41, 0.16);
+}
+
+.panel h3 {
+  margin: 0 0 16px;
+}
+
+@media (max-width: 980px) {
+  .main {
+    flex-direction: column;
+  }
+
+  .side {
+    width: 100% !important;
+  }
+
+  .control-row {
+    justify-content: flex-start;
+  }
+}
