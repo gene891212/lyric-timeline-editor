@@ -20,7 +20,6 @@
               <span class="play-lyric">{{ activePlayText || '-' }}</span>
             </div>
             <div class="snap-controls">
-              <span>Snap {{ snap.grid }}ms</span>
               <a-button size="small" @click="resolveOverlaps">Resolve Overlap</a-button>
             </div>
             <div class="zoom-controls">
@@ -600,7 +599,7 @@ const applyImport = () => {
     ? parseSrt(text)
     : text.includes('[') && text.includes(']')
       ? parseLrc(text)
-      : []
+      : parsePlainLyrics(text)
   if (parsed.length === 0) return
   pushHistorySnapshot(cloneSegments())
   segments.value = parsed
@@ -875,6 +874,27 @@ const parseLrcTime = (mm: string, ss: string, fraction: string) => {
           ? Number(msRaw) * 10
           : Number(msRaw.slice(0, 3))
   return minutes * 60000 + seconds * 1000 + ms
+}
+
+const parsePlainLyrics = (content: string): Segment[] => {
+  const lines = content
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  if (lines.length === 0) return []
+  const intervalMs = 3000
+  return lines.map((line, index) => {
+    const start = snapValue(index * intervalMs)
+    const end = snapValue(start + intervalMs)
+    return {
+      id: `plain-${index}-${start}`,
+      start,
+      end,
+      text: line,
+      color: index % 2 === 0 ? '#2c2f33' : '#db4c3f',
+    }
+  })
 }
 </script>
 
