@@ -3,8 +3,9 @@
     <a-layout-header class="topbar">
       <div class="brand">Lyric Timeline Editor</div>
       <div class="actions">
-        <a-button type="primary" @click="importVisible = true">Import SRT/LRC</a-button>
-        <a-button @click="exportVisible = true">Export</a-button>
+        <a-input v-model="youtubeUrl" size="small" placeholder="YouTube URL" style="width: 260px" />
+        <a-button size="small" type="primary" @click="importVisible = true">Import SRT/LRC</a-button>
+        <a-button size="small" @click="exportVisible = true">Export</a-button>
       </div>
     </a-layout-header>
     <a-layout class="main">
@@ -113,10 +114,6 @@
         </div>
         <div class="panel youtube-panel">
           <h3>YouTube</h3>
-          <a-input v-model="youtubeUrl" placeholder="Paste YouTube URL" />
-          <a-space>
-            <a-button size="small" type="primary" @click="loadYouTube">Load</a-button>
-          </a-space>
           <div v-if="youtubeVideoId" class="youtube-frame">
             <div id="youtube-player"></div>
           </div>
@@ -222,6 +219,7 @@ const isYouTubePlaying = ref(false)
 let youtubePlayer: any = null
 let youtubeRaf = 0
 const youtubeDurationMs = ref(0)
+let youtubeLoadTimer = 0
 
 const tickStepMs = computed(() => {
   const target = 100 / pxPerMs.value
@@ -309,6 +307,14 @@ watch(youtubeEnabled, (enabled) => {
 const activeSegment = computed(() => {
   const [first] = selectionIds.value
   return segments.value.find((segment) => segment.id === first) ?? null
+})
+
+watch(youtubeUrl, (value) => {
+  if (youtubeLoadTimer) window.clearTimeout(youtubeLoadTimer)
+  if (!value.trim()) return
+  youtubeLoadTimer = window.setTimeout(() => {
+    loadYouTube()
+  }, 500)
 })
 
 const draft = reactive({
