@@ -69,6 +69,8 @@ body {
   overflow-x: auto;
   padding-bottom: 6px;
   scrollbar-width: none;
+  cursor: col-resize;
+  user-select: none;
 }
 
 .scale-scroll::-webkit-scrollbar {

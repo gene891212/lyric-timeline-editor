@@ -36,7 +36,12 @@
               />
             </div>
           </div>
-          <div ref="headerScrollRef" class="scale-scroll" @scroll="onHeaderScroll">
+          <div
+            ref="headerScrollRef"
+            class="scale-scroll"
+            @scroll="onHeaderScroll"
+            @pointerdown="onHeaderPointerDown"
+          >
             <div class="scale-track" :style="{ width: `${timelineWidth}px` }">
               <div
                 v-for="tick in ticks"
@@ -544,6 +549,10 @@ const updatePlayheadFromEvent = (event: PointerEvent) => {
   if (!trackRef.value) return
   const rect = trackRef.value.getBoundingClientRect()
   const localX = event.clientX - rect.left
+  updatePlayheadFromX(localX)
+}
+
+const updatePlayheadFromX = (localX: number) => {
   const clampedX = Math.max(0, Math.min(localX, timelineWidth.value))
   const ms = clampedX / pxPerMs.value
   playheadMs.value = snapValue(ms)
@@ -553,6 +562,33 @@ const updatePlayheadFromEvent = (event: PointerEvent) => {
   if (isPlaying.value) {
     ensurePlayheadInView()
   }
+}
+
+const onHeaderPointerDown = (event: PointerEvent) => {
+  if (event.button !== 0) return
+  if (!headerScrollRef.value) return
+  const rect = headerScrollRef.value.getBoundingClientRect()
+  const localX = event.clientX - rect.left + headerScrollRef.value.scrollLeft
+  updatePlayheadFromX(localX)
+  headerDragActive.value = true
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  window.addEventListener('pointermove', onHeaderPointerMove)
+  window.addEventListener('pointerup', onHeaderPointerUp)
+}
+
+const headerDragActive = ref(false)
+
+const onHeaderPointerMove = (event: PointerEvent) => {
+  if (!headerDragActive.value || !headerScrollRef.value) return
+  const rect = headerScrollRef.value.getBoundingClientRect()
+  const localX = event.clientX - rect.left + headerScrollRef.value.scrollLeft
+  updatePlayheadFromX(localX)
+}
+
+const onHeaderPointerUp = () => {
+  headerDragActive.value = false
+  window.removeEventListener('pointermove', onHeaderPointerMove)
+  window.removeEventListener('pointerup', onHeaderPointerUp)
 }
 
 const onTrackDoubleClick = (event: MouseEvent) => {
