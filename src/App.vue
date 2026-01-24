@@ -103,6 +103,18 @@
             <a-button type="primary" long @click="applyDraft">Apply</a-button>
           </a-form>
         </div>
+        <div class="panel youtube-panel">
+          <h3>YouTube</h3>
+          <a-input v-model="youtubeUrl" placeholder="Paste YouTube URL" />
+          <a-space>
+            <a-button size="small" type="primary" @click="loadYouTube">Load</a-button>
+            <a-switch v-model="youtubeEnabled" size="small" />
+            <span>Sync</span>
+          </a-space>
+          <div v-if="youtubeVideoId" class="youtube-frame">
+            <div id="youtube-player"></div>
+          </div>
+        </div>
       </a-layout-sider>
     </a-layout>
   </a-layout>
@@ -158,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 type Segment = {
   id: string
@@ -195,6 +207,14 @@ const playheadMs = ref(0)
 const isPlaying = ref(false)
 let playLastTs = 0
 let playRaf = 0
+const youtubeUrl = ref('')
+const youtubeVideoId = ref('')
+const youtubeEnabled = ref(false)
+const youtubeReady = ref(false)
+const isYouTubePlaying = ref(false)
+let youtubePlayer: any = null
+let youtubeRaf = 0
+const youtubeDurationMs = ref(0)
 
 const tickStepMs = computed(() => {
   const target = 100 / pxPerMs.value
@@ -225,13 +245,15 @@ const activePlayText = computed(() => activePlaySegment.value?.text ?? '')
 
 const timelineWidth = computed(() => {
   const maxEnd = Math.max(0, ...segments.value.map((segment) => segment.end))
-  const base = maxEnd * pxPerMs.value + 400
+  const maxDuration = Math.max(maxEnd, youtubeEnabled.value ? youtubeDurationMs.value : 0)
+  const base = maxDuration * pxPerMs.value + 400
   return Math.max(900, Math.round(base))
 })
 
-const timelineDuration = computed(() =>
-  Math.max(0, ...segments.value.map((segment) => segment.end)),
-)
+const timelineDuration = computed(() => {
+  const maxEnd = Math.max(0, ...segments.value.map((segment) => segment.end))
+  return Math.max(maxEnd, youtubeEnabled.value ? youtubeDurationMs.value : 0)
+})
 const formatMark = (ms: number) => {
   const totalSeconds = Math.floor(ms / 1000)
   const mm = Math.floor(totalSeconds / 60)
@@ -266,6 +288,16 @@ watch(
   },
   { immediate: true },
 )
+
+watch(youtubeEnabled, (enabled) => {
+  if (!enabled) {
+    stopYouTubeTick()
+    isYouTubePlaying.value = false
+    if (youtubePlayer) {
+      youtubePlayer.pauseVideo()
+    }
+  }
+})
 
 const activeSegment = computed(() => {
   const [first] = selectionIds.value
@@ -513,6 +545,9 @@ const updatePlayheadFromEvent = (event: PointerEvent) => {
   const clampedX = Math.max(0, Math.min(localX, timelineWidth.value))
   const ms = clampedX / pxPerMs.value
   playheadMs.value = snapValue(ms)
+  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
+    youtubePlayer.seekTo(playheadMs.value / 1000, true)
+  }
   if (isPlaying.value) {
     ensurePlayheadInView()
   }
@@ -704,6 +739,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
   stopPlay()
+  stopYouTubeTick()
 })
 
 const tickPlay = (ts: number) => {
@@ -724,6 +760,14 @@ const tickPlay = (ts: number) => {
 }
 
 const togglePlay = () => {
+  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
+    if (isYouTubePlaying.value) {
+      youtubePlayer.pauseVideo()
+    } else {
+      youtubePlayer.playVideo()
+    }
+    return
+  }
   if (isPlaying.value) {
     stopPlay()
     return
@@ -734,6 +778,15 @@ const togglePlay = () => {
 }
 
 const stopPlay = () => {
+  stopFakePlay()
+  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
+    youtubePlayer.pauseVideo()
+    youtubePlayer.seekTo(0, true)
+  }
+  stopYouTubeTick()
+}
+
+const stopFakePlay = () => {
   isPlaying.value = false
   playLastTs = 0
   if (playRaf) cancelAnimationFrame(playRaf)
@@ -895,6 +948,111 @@ const parsePlainLyrics = (content: string): Segment[] => {
       color: index % 2 === 0 ? '#2c2f33' : '#db4c3f',
     }
   })
+}
+
+const loadYouTube = async () => {
+  const id = extractYouTubeId(youtubeUrl.value)
+  if (!id) return
+  youtubeVideoId.value = id
+  await nextTick()
+  await loadYouTubeApi()
+  if (youtubePlayer) {
+    youtubePlayer.cueVideoById(id)
+    updateYouTubeDuration()
+    return
+  }
+  youtubePlayer = new window.YT.Player('youtube-player', {
+    videoId: id,
+    playerVars: {
+      autoplay: 0,
+      controls: 1,
+      rel: 0,
+      modestbranding: 1,
+    },
+    events: {
+      onReady: () => {
+        youtubeReady.value = true
+        updateYouTubeDuration()
+      },
+      onStateChange: (event: { data: number }) => {
+        const state = event.data
+        const playing = state === window.YT.PlayerState.PLAYING
+        isYouTubePlaying.value = playing
+        if (playing) {
+          stopFakePlay()
+          updateYouTubeDuration()
+          startYouTubeTick()
+        } else {
+          stopYouTubeTick()
+        }
+      },
+    },
+  })
+}
+
+const extractYouTubeId = (value: string) => {
+  const url = value.trim()
+  if (!url) return ''
+  const short = url.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/)
+  if (short) return short[1]
+  const watch = url.match(/[?&]v=([a-zA-Z0-9_-]{6,})/)
+  if (watch) return watch[1]
+  const embed = url.match(/\/embed\/([a-zA-Z0-9_-]{6,})/)
+  if (embed) return embed[1]
+  if (/^[a-zA-Z0-9_-]{6,}$/.test(url)) return url
+  return ''
+}
+
+const loadYouTubeApi = () => {
+  if (window.YT?.Player) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    const existing = document.querySelector('script[data-youtube-api]')
+    if (existing) {
+      const prev = window.onYouTubeIframeAPIReady
+      window.onYouTubeIframeAPIReady = () => {
+        prev?.()
+        resolve()
+      }
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://www.youtube.com/iframe_api'
+    script.async = true
+    script.dataset.youtubeApi = '1'
+    window.onYouTubeIframeAPIReady = () => resolve()
+    document.head.appendChild(script)
+  })
+}
+
+const startYouTubeTick = () => {
+  stopYouTubeTick()
+  const step = () => {
+    if (!youtubePlayer || !youtubeEnabled.value) return
+    const current = youtubePlayer.getCurrentTime?.() ?? 0
+    playheadMs.value = current * 1000
+    updateYouTubeDuration()
+    ensurePlayheadInView()
+    youtubeRaf = requestAnimationFrame(step)
+  }
+  youtubeRaf = requestAnimationFrame(step)
+}
+
+const stopYouTubeTick = () => {
+  if (youtubeRaf) cancelAnimationFrame(youtubeRaf)
+  youtubeRaf = 0
+}
+
+const updateYouTubeDuration = () => {
+  if (!youtubePlayer?.getDuration) return
+  const duration = youtubePlayer.getDuration() || 0
+  youtubeDurationMs.value = duration * 1000
+}
+
+declare global {
+  interface Window {
+    YT?: any
+    onYouTubeIframeAPIReady?: () => void
+  }
 }
 </script>
 
