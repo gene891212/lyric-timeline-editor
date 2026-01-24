@@ -21,6 +21,9 @@
             </div>
             <div class="snap-controls">
               <a-button size="small" @click="resolveOverlaps">Resolve Overlap</a-button>
+              <a-button size="small" @click="autoFollow = !autoFollow">
+                {{ autoFollow ? 'Auto Follow: On' : 'Auto Follow: Off' }}
+              </a-button>
             </div>
             <div class="zoom-controls">
               <span>Zoom</span>
@@ -108,8 +111,6 @@
           <a-input v-model="youtubeUrl" placeholder="Paste YouTube URL" />
           <a-space>
             <a-button size="small" type="primary" @click="loadYouTube">Load</a-button>
-            <a-switch v-model="youtubeEnabled" size="small" />
-            <span>Sync</span>
           </a-space>
           <div v-if="youtubeVideoId" class="youtube-frame">
             <div id="youtube-player"></div>
@@ -191,6 +192,7 @@ const pxPerMs = ref(0.08)
 const zoomLevel = ref(80)
 const minDuration = 300
 const selectionIds = ref(new Set<string>())
+const autoFollow = ref(true)
 const trackRef = ref<HTMLElement | null>(null)
 const timelineScrollRef = ref<HTMLElement | null>(null)
 const headerScrollRef = ref<HTMLElement | null>(null)
@@ -209,7 +211,7 @@ let playLastTs = 0
 let playRaf = 0
 const youtubeUrl = ref('')
 const youtubeVideoId = ref('')
-const youtubeEnabled = ref(false)
+const youtubeEnabled = ref(true)
 const youtubeReady = ref(false)
 const isYouTubePlaying = ref(false)
 let youtubePlayer: any = null
@@ -509,7 +511,7 @@ const boxStyle = computed(() => {
 const startBoxSelect = (event: PointerEvent) => {
   if (event.button !== 0) return
   if (event.target !== trackRef.value) return
-  updatePlayheadFromEvent(event)
+  clearSelection()
   const rect = trackRef.value.getBoundingClientRect()
   const localX = event.clientX - rect.left
   const localY = event.clientY - rect.top
@@ -731,13 +733,32 @@ const onKeyDown = (event: KeyboardEvent) => {
   }
 }
 
+const onTimelineWheel = (event: WheelEvent) => {
+  if (!event.ctrlKey) return
+  event.preventDefault()
+  const delta = event.deltaY
+  if (delta === 0) return
+  const step = 5
+  if (delta < 0) {
+    zoomLevel.value = Math.min(160, zoomLevel.value + step)
+  } else {
+    zoomLevel.value = Math.max(20, zoomLevel.value - step)
+  }
+}
+
 onMounted(() => {
   pushHistorySnapshot(cloneSegments())
   window.addEventListener('keydown', onKeyDown)
+  nextTick(() => {
+    timelineScrollRef.value?.addEventListener('wheel', onTimelineWheel, { passive: false })
+    headerScrollRef.value?.addEventListener('wheel', onTimelineWheel, { passive: false })
+  })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
+  timelineScrollRef.value?.removeEventListener('wheel', onTimelineWheel)
+  headerScrollRef.value?.removeEventListener('wheel', onTimelineWheel)
   stopPlay()
   stopYouTubeTick()
 })
@@ -795,16 +816,11 @@ const stopFakePlay = () => {
 
 const ensurePlayheadInView = () => {
   if (!timelineScrollRef.value) return
+  if (!autoFollow.value) return
   const view = timelineScrollRef.value
-  const left = view.scrollLeft
-  const right = left + view.clientWidth
   const x = playheadX.value
-  const padding = 80
-  if (x < left + padding) {
-    view.scrollLeft = Math.max(0, x - padding)
-  } else if (x > right - padding) {
-    view.scrollLeft = x - view.clientWidth + padding
-  }
+  const target = x - view.clientWidth / 2
+  view.scrollLeft = Math.max(0, target)
 }
 
 const buildSrt = (items: Segment[]) => {
