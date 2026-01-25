@@ -416,6 +416,12 @@ html,
   box-shadow: 0 0 0 1px rgba(255, 181, 71, 0.4);
 }
 
+.lyric-item.is-playing {
+  border-color: rgba(99, 198, 255, 0.9);
+  box-shadow: 0 0 0 2px rgba(99, 198, 255, 0.45);
+  background: rgba(99, 198, 255, 0.22);
+}
+
 .lyric-times {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

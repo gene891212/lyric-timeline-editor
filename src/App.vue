@@ -17,12 +17,16 @@
             <a-input v-model="youtubeUrl" size="small" placeholder="YouTube URL" />
             <a-button size="small" @click="loadYouTube">Load</a-button>
           </div>
-          <div class="lyric-list">
+          <div ref="lyricListRef" class="lyric-list">
             <div
               v-for="segment in orderedSegments"
               :key="segment.id"
               class="lyric-item"
-              :class="{ 'is-selected': selectionIds.has(segment.id) }"
+              :class="{
+                'is-selected': selectionIds.has(segment.id),
+                'is-playing': isSegmentPlaying(segment),
+              }"
+              :ref="setLyricItemRef(segment.id)"
               @click="setSelection(segment.id, false)"
             >
               <div class="lyric-times">
@@ -285,6 +289,20 @@ const activePlaySegment = computed(() =>
 const activePlayId = computed(() => activePlaySegment.value?.id ?? '')
 const activePlayText = computed(() => activePlaySegment.value?.text ?? '')
 const orderedSegments = computed(() => [...segments.value].sort((a, b) => a.start - b.start))
+const lyricListRef = ref<HTMLElement | null>(null)
+const lyricItemRefs = new Map<string, HTMLElement>()
+
+const setLyricItemRef = (id: string) => (el: Element | null) => {
+  if (el instanceof HTMLElement) {
+    lyricItemRefs.set(id, el)
+  } else {
+    lyricItemRefs.delete(id)
+  }
+}
+
+const isSegmentPlaying = (segment: Segment) => {
+  return playheadMs.value >= segment.start && playheadMs.value <= segment.end
+}
 
 const timelineWidth = computed(() => {
   const maxEnd = Math.max(0, ...segments.value.map((segment) => segment.end))
@@ -340,6 +358,16 @@ watch(youtubeEnabled, (enabled) => {
       youtubePlayer.pauseVideo()
     }
   }
+})
+
+watch(activePlayId, (id) => {
+  if (!id) return
+  nextTick(() => {
+    const container = lyricListRef.value
+    const item = lyricItemRefs.get(id)
+    if (!container || !item) return
+    item.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
 })
 
 const cloneSegments = () => segments.value.map((segment) => ({ ...segment }))
