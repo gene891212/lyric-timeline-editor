@@ -3,8 +3,7 @@
     <a-layout-header class="topbar">
       <div class="brand">Lyric Timeline Editor</div>
       <div class="actions">
-        <a-input v-model="youtubeUrl" size="small" placeholder="YouTube URL" style="width: 260px" />
-        <a-button size="small" @click="exportVisible = true">Export</a-button>
+        <a-button size="small" type="primary" @click="exportVisible = true">Export</a-button>
       </div>
     </a-layout-header>
     <a-layout class="main">
@@ -13,6 +12,10 @@
           <div class="panel-head">
             <h3>Lyrics</h3>
             <a-button size="small" type="primary" @click="importVisible = true">Import SRT/LRC</a-button>
+          </div>
+          <div class="youtube-input">
+            <a-input v-model="youtubeUrl" size="small" placeholder="YouTube URL" />
+            <a-button size="small" @click="loadYouTube">Load</a-button>
           </div>
           <div class="lyric-list">
             <div
@@ -51,6 +54,9 @@
       <a-layout-content class="timeline-pane">
         <div v-if="youtubeVideoId" class="youtube-inline">
           <div id="youtube-player"></div>
+        </div>
+        <div class="current-lyric">
+          {{ activePlayText || '—' }}
         </div>
         <div class="timeline-header">
           <div class="control-row">
@@ -153,6 +159,7 @@
     v-model:visible="importVisible"
     title="Import SRT/LRC"
     :ok-text="'Import'"
+    :cancel-text="'Cancel'"
     :width="720"
     @ok="applyImport"
   >
@@ -163,19 +170,21 @@
         accept=".srt,.lrc,.txt"
         @change="handleFile"
       >
-        <a-button>Choose File</a-button>
+        <template #upload-button>
+          <a-button>Click to Upload</a-button>
+        </template>
       </a-upload>
       <a-textarea
         v-model="importText"
         placeholder="Paste SRT/LRC content here..."
         :auto-size="{ minRows: 10, maxRows: 18 }"
       />
-      <a-alert type="info" show-icon>
-        <template #title>Tips</template>
-        <template #content>
-          支援 SRT 及 LRC 格式。若同時有檔案與貼上內容，以貼上內容為主。
-        </template>
-      </a-alert>
+      <a-alert
+        type="info"
+        show-icon
+        title="Tips"
+        :content="'Supports SRT and LRC. If both file and pasted content are provided, pasted content wins.'"
+      />
     </a-space>
   </a-modal>
   <a-modal v-model:visible="exportVisible" title="Export" :width="720">
@@ -192,7 +201,7 @@
     </a-space>
     <template #footer>
       <a-space>
-        <a-button @click="exportVisible = false">Close</a-button>
+        <a-button @click="exportVisible = false">Cancel</a-button>
         <a-button @click="copyExport">Copy</a-button>
         <a-button type="primary" @click="downloadExport">Download</a-button>
       </a-space>
@@ -331,14 +340,6 @@ watch(youtubeEnabled, (enabled) => {
       youtubePlayer.pauseVideo()
     }
   }
-})
-
-watch(youtubeUrl, (value) => {
-  if (youtubeLoadTimer) window.clearTimeout(youtubeLoadTimer)
-  if (!value.trim()) return
-  youtubeLoadTimer = window.setTimeout(() => {
-    loadYouTube()
-  }, 500)
 })
 
 const cloneSegments = () => segments.value.map((segment) => ({ ...segment }))

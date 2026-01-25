@@ -3,6 +3,11 @@
   font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
   background: #f6f2ea;
   color: #1f2329;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
 }
 
 * {
@@ -29,7 +34,7 @@ html,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 var(--space-5);
   height: 64px;
   background: linear-gradient(90deg, #131415 0%, #2d2f33 100%);
   color: #fef6e7;
@@ -42,20 +47,27 @@ html,
 
 .actions {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .main {
-  padding: 24px;
-  gap: 24px;
+  padding: var(--space-5);
+  gap: var(--space-5);
   height: calc(100vh - 64px);
   overflow: hidden;
+  align-items: stretch;
+}
+
+.main :deep(.arco-layout-sider) {
+  height: 100%;
+  box-shadow: none;
+  border-right: 0;
 }
 
 .timeline-pane {
   background: #fff7eb;
   border-radius: 16px;
-  padding: 20px;
+  padding: var(--space-4);
   box-shadow: 0 10px 30px rgba(31, 35, 41, 0.08);
   min-height: 520px;
   position: relative;
@@ -66,12 +78,12 @@ html,
 
 .youtube-inline {
   width: 100%;
-  flex: 1 1 auto;
-  min-height: 220px;
+  flex: 1 1 0;
+  min-height: 0;
   border-radius: 14px;
   overflow: hidden;
   background: #0f1114;
-  margin: 0 auto 16px;
+  margin: 0 auto var(--space-4);
 }
 
 .youtube-inline #youtube-player {
@@ -79,21 +91,33 @@ html,
   height: 100%;
 }
 
+.current-lyric {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2329;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(31, 35, 41, 0.1);
+  border-radius: 12px;
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
 .timeline-header {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--space-2);
   font-size: 12px;
   text-transform: uppercase;
   color: #6b6f76;
-  padding-bottom: 16px;
+  padding-bottom: var(--space-4);
   border-bottom: 1px solid rgba(31, 35, 41, 0.08);
 }
 
 .scale-scroll {
   overflow-x: auto;
-  padding-bottom: 6px;
+  padding-bottom: var(--space-1);
   scrollbar-width: none;
   cursor: col-resize;
   user-select: none;
@@ -106,7 +130,7 @@ html,
 .scale-track {
   position: relative;
   height: 24px;
-  padding-left: 24px;
+  padding-left: var(--space-5);
 }
 
 .scale-tick {
@@ -132,14 +156,14 @@ html,
 .snap-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-size: 12px;
 }
 
 .control-row {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -147,7 +171,7 @@ html,
 .play-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin-right: auto;
 }
 
@@ -166,13 +190,13 @@ html,
 .zoom-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .timeline-scroll {
-  margin-top: 16px;
+  margin-top: var(--space-4);
   overflow-x: auto;
-  padding-bottom: 12px;
+  padding-bottom: var(--space-3);
 }
 
 .timeline-track {
@@ -186,7 +210,7 @@ html,
     transparent var(--grid-step, 80px)
   );
   border-radius: 12px;
-  padding: 24px;
+  padding: var(--space-5);
   overflow: hidden;
   user-select: none;
 }
@@ -200,7 +224,7 @@ html,
   border-radius: 12px;
   display: flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 var(--space-2);
   font-weight: 500;
   box-shadow: 0 8px 18px rgba(28, 28, 32, 0.2);
   cursor: grab;
@@ -249,7 +273,7 @@ html,
   position: absolute;
   top: 4px;
   left: 6px;
-  padding: 2px 6px;
+  padding: var(--space-1) var(--space-2);
   border-radius: 6px;
   background: rgba(31, 35, 41, 0.85);
   color: #fef6e7;
@@ -314,29 +338,34 @@ html,
 
 .side {
   background: transparent;
+  box-shadow: none;
 }
 
 .side.left {
-  padding-right: 8px;
+  display: flex;
+  flex-direction: column;
+  padding-right: var(--space-2);
+  height: calc(100vh - 64px - 48px);
+  overflow: hidden;
 }
 
 .panel {
   background: #1f2329;
   color: #fef6e7;
   border-radius: 16px;
-  padding: 24px;
+  padding: var(--space-5);
   box-shadow: 0 10px 30px rgba(31, 35, 41, 0.16);
 }
-
 
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .panel-head h3 {
+  margin: 0;
   font-size: 16px;
 }
 
@@ -344,23 +373,38 @@ html,
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.youtube-input {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.youtube-input :deep(.arco-input) {
+  flex: 1;
 }
 
 .lyric-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   overflow: auto;
-  padding-right: 4px;
-  max-height: calc(100vh - 220px);
+  padding-right: var(--space-1);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .lyric-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid transparent;
@@ -376,7 +420,7 @@ html,
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .time-sep {
@@ -392,12 +436,11 @@ html,
 .lyric-item :deep(.arco-textarea) {
   line-height: 1.2;
 }
-}
 
 .youtube-panel {
-  margin-top: 16px;
+  margin-top: var(--space-4);
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .youtube-frame {
