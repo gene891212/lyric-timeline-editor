@@ -4,12 +4,54 @@
       <div class="brand">Lyric Timeline Editor</div>
       <div class="actions">
         <a-input v-model="youtubeUrl" size="small" placeholder="YouTube URL" style="width: 260px" />
-        <a-button size="small" type="primary" @click="importVisible = true">Import SRT/LRC</a-button>
         <a-button size="small" @click="exportVisible = true">Export</a-button>
       </div>
     </a-layout-header>
     <a-layout class="main">
+      <a-layout-sider class="side left" width="320">
+        <div class="panel list-panel">
+          <div class="panel-head">
+            <h3>Lyrics</h3>
+            <a-button size="small" type="primary" @click="importVisible = true">Import SRT/LRC</a-button>
+          </div>
+          <div class="lyric-list">
+            <div
+              v-for="segment in orderedSegments"
+              :key="segment.id"
+              class="lyric-item"
+              :class="{ 'is-selected': selectionIds.has(segment.id) }"
+              @click="setSelection(segment.id, false)"
+            >
+              <div class="lyric-times">
+                <a-input-number
+                  :model-value="segment.start / 1000"
+                  :min="0"
+                  :step="0.01"
+                  size="small"
+                  @change="(value) => updateListStart(segment.id, value)"
+                />
+                <span class="time-sep">→</span>
+                <a-input-number
+                  :model-value="segment.end / 1000"
+                  :min="0"
+                  :step="0.01"
+                  size="small"
+                  @change="(value) => updateListEnd(segment.id, value)"
+                />
+              </div>
+              <a-textarea
+                :model-value="segment.text"
+                :auto-size="{ minRows: 2, maxRows: 4 }"
+                @change="(value) => updateListText(segment.id, value)"
+              />
+            </div>
+          </div>
+        </div>
+      </a-layout-sider>
       <a-layout-content class="timeline-pane">
+        <div v-if="youtubeVideoId" class="youtube-inline">
+          <div id="youtube-player"></div>
+        </div>
         <div class="timeline-header">
           <div class="control-row">
             <div class="play-controls">
@@ -30,7 +72,7 @@
               <span>Zoom</span>
               <a-slider
                 v-model="zoomLevel"
-                :min="20"
+                :min="5"
                 :max="160"
                 :step="5"
                 :style="{ width: '160px' }"
@@ -65,6 +107,8 @@
             :style="{ width: `${timelineWidth}px`, '--grid-step': `${gridStepPx}px` }"
             @pointerdown="startBoxSelect"
             @dblclick="onTrackDoubleClick"
+            @pointermove="onTrackHoverMove"
+            @pointerleave="onTrackHoverLeave"
           >
             <div
               v-for="segment in segments"
@@ -77,7 +121,7 @@
               :style="segmentStyle(segment)"
               @pointerdown="startDrag($event, segment, 'move')"
             >
-              <span>{{ segment.text }}</span>
+              <span class="segment-text">{{ segment.text }}</span>
               <span
                 class="handle start"
                 @pointerdown.stop.prevent="startDrag($event, segment, 'resize-start')"
@@ -89,6 +133,13 @@
             </div>
             <div v-if="boxState.active" class="selection-box" :style="boxStyle"></div>
             <div
+              v-if="hoverState.active"
+              class="hover-playhead"
+              :style="{ left: `${hoverState.x}px` }"
+            >
+              <span class="hover-time">{{ formatClock(hoverTimeMs) }}</span>
+            </div>
+            <div
               class="playhead"
               :style="{ left: `${playheadX}px` }"
               @pointerdown.stop="startPlayheadDrag"
@@ -96,29 +147,6 @@
           </div>
         </div>
       </a-layout-content>
-      <a-layout-sider class="side" width="320">
-        <div class="panel">
-          <h3>Segment</h3>
-          <a-form layout="vertical" :disabled="!activeSegment">
-            <a-form-item label="Start (sec)">
-              <a-input-number v-model="draft.startSec" :min="0" :step="0.01" />
-            </a-form-item>
-            <a-form-item label="End (sec)">
-              <a-input-number v-model="draft.endSec" :min="0" :step="0.01" />
-            </a-form-item>
-            <a-form-item label="Text">
-              <a-textarea v-model="draft.text" :auto-size="{ minRows: 4, maxRows: 8 }" />
-            </a-form-item>
-            <a-button type="primary" long @click="applyDraft">Apply</a-button>
-          </a-form>
-        </div>
-        <div class="panel youtube-panel">
-          <h3>YouTube</h3>
-          <div v-if="youtubeVideoId" class="youtube-frame">
-            <div id="youtube-player"></div>
-          </div>
-        </div>
-      </a-layout-sider>
     </a-layout>
   </a-layout>
   <a-modal
@@ -198,7 +226,7 @@ const autoFollow = ref(true)
 const trackRef = ref<HTMLElement | null>(null)
 const timelineScrollRef = ref<HTMLElement | null>(null)
 const headerScrollRef = ref<HTMLElement | null>(null)
-const snap = reactive({ grid: 100 })
+const snap = reactive({ grid: 10 })
 const importVisible = ref(false)
 const importText = ref('')
 const exportVisible = ref(false)
@@ -247,6 +275,7 @@ const activePlaySegment = computed(() =>
 )
 const activePlayId = computed(() => activePlaySegment.value?.id ?? '')
 const activePlayText = computed(() => activePlaySegment.value?.text ?? '')
+const orderedSegments = computed(() => [...segments.value].sort((a, b) => a.start - b.start))
 
 const timelineWidth = computed(() => {
   const maxEnd = Math.max(0, ...segments.value.map((segment) => segment.end))
@@ -304,11 +333,6 @@ watch(youtubeEnabled, (enabled) => {
   }
 })
 
-const activeSegment = computed(() => {
-  const [first] = selectionIds.value
-  return segments.value.find((segment) => segment.id === first) ?? null
-})
-
 watch(youtubeUrl, (value) => {
   if (youtubeLoadTimer) window.clearTimeout(youtubeLoadTimer)
   if (!value.trim()) return
@@ -317,45 +341,43 @@ watch(youtubeUrl, (value) => {
   }, 500)
 })
 
-const draft = reactive({
-  startSec: 0,
-  endSec: 0,
-  text: '',
-})
-
-watch(
-  activeSegment,
-  (segment) => {
-    if (!segment) {
-      draft.startSec = 0
-      draft.endSec = 0
-      draft.text = ''
-      return
-    }
-    draft.startSec = segment.start / 1000
-    draft.endSec = segment.end / 1000
-    draft.text = segment.text
-  },
-  { immediate: true },
-)
-
-const applyDraft = () => {
-  const segment = activeSegment.value
-  if (!segment) return
-  pushHistorySnapshot(cloneSegments())
-  const startMs = Math.round(draft.startSec * 1000)
-  const endMs = Math.round(draft.endSec * 1000)
-  const nextStart = Math.max(0, Math.min(startMs, endMs - minDuration))
-  const nextEnd = Math.max(nextStart + minDuration, endMs)
-  updateSegment(segment.id, { start: nextStart, end: nextEnd, text: draft.text })
-}
-
 const cloneSegments = () => segments.value.map((segment) => ({ ...segment }))
 
 const updateSegment = (id: string, patch: Partial<Segment>) => {
   segments.value = segments.value.map((segment) =>
     segment.id === id ? { ...segment, ...patch } : segment,
   )
+}
+
+const parseInputNumber = (value: unknown) => {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const updateListStart = (id: string, value: unknown) => {
+  const segment = segments.value.find((item) => item.id === id)
+  const nextSec = parseInputNumber(value)
+  if (!segment || nextSec === null) return
+  const nextStart = Math.max(0, Math.round(nextSec * 1000))
+  const nextEnd = Math.max(nextStart + minDuration, segment.end)
+  updateSegment(id, { start: Math.min(nextStart, nextEnd - minDuration), end: nextEnd })
+}
+
+const updateListEnd = (id: string, value: unknown) => {
+  const segment = segments.value.find((item) => item.id === id)
+  const nextSec = parseInputNumber(value)
+  if (!segment || nextSec === null) return
+  const nextEnd = Math.max(segment.start + minDuration, Math.round(nextSec * 1000))
+  updateSegment(id, { end: nextEnd })
+}
+
+const updateListText = (id: string, value: unknown) => {
+  const text = typeof value === 'string' ? value : String(value ?? '')
+  updateSegment(id, { text })
 }
 
 const resolveOverlaps = () => {
@@ -503,6 +525,11 @@ const boxState = reactive({
   currentX: 0,
   currentY: 0,
 })
+const hoverState = reactive({
+  active: false,
+  x: 0,
+})
+const hoverTimeMs = computed(() => Math.max(0, Math.round(hoverState.x / pxPerMs.value)))
 const boxPending = ref(false)
 const boxDragThreshold = 4
 
@@ -568,6 +595,18 @@ const updatePlayheadFromX = (localX: number) => {
   if (isPlaying.value) {
     ensurePlayheadInView()
   }
+}
+
+const onTrackHoverMove = (event: PointerEvent) => {
+  if (!trackRef.value) return
+  const rect = trackRef.value.getBoundingClientRect()
+  const localX = event.clientX - rect.left
+  hoverState.x = Math.max(0, Math.min(localX, timelineWidth.value))
+  hoverState.active = true
+}
+
+const onTrackHoverLeave = () => {
+  hoverState.active = false
 }
 
 const onHeaderPointerDown = (event: PointerEvent) => {
@@ -645,6 +684,9 @@ const onBoxMove = (event: PointerEvent) => {
 }
 
 const onBoxUp = () => {
+  if (boxPending.value && !boxState.active) {
+    updatePlayheadFromX(boxState.currentX)
+  }
   boxState.active = false
   boxPending.value = false
   window.removeEventListener('pointermove', onBoxMove)
@@ -752,7 +794,7 @@ const onKeyDown = (event: KeyboardEvent) => {
   }
   if (key === '-' || key === '_') {
     event.preventDefault()
-    zoomLevel.value = Math.max(20, zoomLevel.value - 10)
+    zoomLevel.value = Math.max(5, zoomLevel.value - 10)
     return
   }
   if (key === ' ') {
@@ -784,7 +826,7 @@ const onTimelineWheel = (event: WheelEvent) => {
   if (delta < 0) {
     zoomLevel.value = Math.min(160, zoomLevel.value + step)
   } else {
-    zoomLevel.value = Math.max(20, zoomLevel.value - step)
+    zoomLevel.value = Math.max(5, zoomLevel.value - step)
   }
 }
 
