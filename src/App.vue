@@ -160,7 +160,12 @@
             </div>
             <div v-if="boxState.active" class="selection-box" :style="boxStyle"></div>
             <div
-              v-if="hoverState.active"
+              v-if="snapIndicator.active"
+              class="snap-indicator"
+              :style="{ left: `${snapIndicator.x}px` }"
+            ></div>
+            <div
+              v-if="hoverState.active && !dragState"
               class="hover-playhead"
               :style="{ left: `${hoverState.x}px` }"
             >
@@ -475,6 +480,57 @@ const snapValue = (value: number) => {
   return Math.round(value / snap.grid) * snap.grid
 }
 
+const snapThresholdPx = 8
+const getSnapThresholdMs = () => {
+  return snapThresholdPx / pxPerMs.value
+}
+
+const snapToNeighbors = (value: number, excludeIds: Set<string>) => {
+  let best = value
+  let snapped = false
+  const threshold = getSnapThresholdMs()
+  let bestDistance = threshold + 1
+  segments.value.forEach((segment) => {
+    if (excludeIds.has(segment.id)) return
+    const boundaries = [segment.start, segment.end]
+    boundaries.forEach((boundary) => {
+      const distance = Math.abs(boundary - value)
+      if (distance <= threshold && distance < bestDistance) {
+        bestDistance = distance
+        best = boundary
+        snapped = true
+      }
+    })
+  })
+  return { value: best, snapped }
+}
+
+const getMoveSnapOffset = (
+  baseOffset: number,
+  items: Array<{ id: string; start: number; end: number }>,
+  excludeIds: Set<string>,
+) => {
+  let bestAdjustment = 0
+  let bestDistance = getSnapThresholdMs() + 1
+  let bestSnapValue = 0
+  items.forEach((item) => {
+    const boundaries = [item.start, item.end]
+    boundaries.forEach((boundary) => {
+      const target = boundary + baseOffset
+      const snapped = snapToNeighbors(target, excludeIds)
+      if (!snapped.snapped) return
+      const adjustment = snapped.value - target
+      const distance = Math.abs(adjustment)
+      if (distance < bestDistance) {
+        bestDistance = distance
+        bestAdjustment = adjustment
+        bestSnapValue = snapped.value
+      }
+    })
+  })
+  return { offset: baseOffset + bestAdjustment, snapped: bestDistance <= getSnapThresholdMs(), snapValue: bestSnapValue }
+}
+
 const dragState = ref<{
   mode: DragMode
   originX: number
@@ -510,39 +566,50 @@ const onPointerMove = (event: PointerEvent) => {
   if (!dragState.value) return
   const { mode, originX, items } = dragState.value
   const deltaMs = (event.clientX - originX) / pxPerMs.value
+  const excludeIds = new Set(items.map((item) => item.id))
   if (mode === 'move') {
     const anchor = items[0]
     const targetStart = snapValue(anchor.start + deltaMs)
-    const rawOffset = targetStart - anchor.start
+    const baseOffset = targetStart - anchor.start
+    const snappedMove = getMoveSnapOffset(baseOffset, items, excludeIds)
     const minStart = Math.min(...items.map((item) => item.start))
-    const offset = Math.max(rawOffset, -minStart)
+    const offset = Math.max(snappedMove.offset, -minStart)
     items.forEach((item) => {
       updateSegment(item.id, {
         start: item.start + offset,
         end: item.end + offset,
       })
     })
+    snapIndicator.active = snappedMove.snapped
+    snapIndicator.x = snappedMove.snapValue * pxPerMs.value
     hasPendingDrag = true
     return
   }
   if (mode === 'resize-start') {
     const item = items[0]
     const snapped = snapValue(item.start + deltaMs)
-    const nextStart = Math.max(0, Math.min(snapped, item.end - minDuration))
+    const snappedStart = snapToNeighbors(snapped, excludeIds)
+    const nextStart = Math.max(0, Math.min(snappedStart.value, item.end - minDuration))
     updateSegment(item.id, { start: nextStart })
+    snapIndicator.active = snappedStart.snapped
+    snapIndicator.x = snappedStart.value * pxPerMs.value
     hasPendingDrag = true
     return
   }
   const item = items[0]
   const snapped = snapValue(item.end + deltaMs)
-  const nextEnd = Math.max(item.start + minDuration, snapped)
+  const snappedEnd = snapToNeighbors(snapped, excludeIds)
+  const nextEnd = Math.max(item.start + minDuration, snappedEnd.value)
   updateSegment(item.id, { end: nextEnd })
+  snapIndicator.active = snappedEnd.snapped
+  snapIndicator.x = snappedEnd.value * pxPerMs.value
   hasPendingDrag = true
 }
 
 const onPointerUp = () => {
   dragState.value = null
   boxState.active = false
+  snapIndicator.active = false
   if (hasPendingDrag && dragSnapshot) {
     pushHistorySnapshot(dragSnapshot)
   }
@@ -587,6 +654,10 @@ const hoverState = reactive({
   x: 0,
 })
 const hoverTimeMs = computed(() => Math.max(0, Math.round(hoverState.x / pxPerMs.value)))
+const snapIndicator = reactive({
+  active: false,
+  x: 0,
+})
 const boxPending = ref(false)
 const boxDragThreshold = 4
 
