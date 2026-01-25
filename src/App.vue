@@ -4,6 +4,7 @@
       <div class="brand">Lyric Timeline Editor</div>
       <div class="actions">
         <a-button size="small" type="primary" @click="exportVisible = true">Export</a-button>
+        <a-button size="small" @click="shortcutsVisible = true">?</a-button>
       </div>
     </a-layout-header>
     <a-layout class="main">
@@ -202,15 +203,12 @@
       </a-upload>
       <a-textarea
         v-model="importText"
-        placeholder="Paste SRT/LRC content here..."
+        placeholder="Paste SRT/LRC content here. Plain text is also supported (one line per lyric)."
         :auto-size="{ minRows: 10, maxRows: 18 }"
       />
-      <a-alert
-        type="info"
-        show-icon
-        title="Tips"
-        :content="'Supports SRT and LRC. If both file and pasted content are provided, pasted content wins.'"
-      />
+      <a-alert type="info" show-icon>
+        Supports SRT/LRC. Plain text is split by line breaks. If both file and pasted content are provided, pasted content wins.
+      </a-alert>
     </a-space>
   </a-modal>
   <a-modal v-model:visible="exportVisible" title="Export" :width="720">
@@ -233,6 +231,48 @@
       </a-space>
     </template>
   </a-modal>
+  <a-modal
+    v-model:visible="shortcutsVisible"
+    title="Usage Guide"
+    :width="520"
+    :ok-text="'OK'"
+    :cancel-text="'Cancel'"
+  >
+    <a-space direction="vertical" size="small" fill>
+      <div class="usage-block">
+        <div class="usage-title">Import Lyrics</div>
+        <div class="usage-text">
+          Click “Import SRT/LRC” to upload SRT/LRC, or paste plain text (one line per lyric).
+        </div>
+      </div>
+      <div class="usage-block">
+        <div class="usage-title">YouTube</div>
+        <div class="usage-text">
+          Paste a YouTube URL and click Load to sync the timeline with the video.
+        </div>
+      </div>
+      <div class="usage-block">
+        <div class="usage-title">Edit Lyrics</div>
+        <div class="usage-text">
+          Drag segments to move, drag edges to resize. Use the left list to edit times,
+          text, play, or delete a segment.
+        </div>
+      </div>
+      <div class="usage-block">
+        <div class="usage-title">Export</div>
+        <div class="usage-text">Use Export to copy or download SRT/LRC.</div>
+      </div>
+      <div class="usage-divider"></div>
+      <a-descriptions :column="1" size="small" bordered>
+        <a-descriptions-item label="Play/Pause">Space</a-descriptions-item>
+        <a-descriptions-item label="Zoom In">+</a-descriptions-item>
+        <a-descriptions-item label="Zoom Out">-</a-descriptions-item>
+        <a-descriptions-item label="Undo">Ctrl/Cmd + Z</a-descriptions-item>
+        <a-descriptions-item label="Redo">Shift + Ctrl/Cmd + Z</a-descriptions-item>
+        <a-descriptions-item label="Delete Segment">Delete / Backspace</a-descriptions-item>
+      </a-descriptions>
+    </a-space>
+  </a-modal>
 </template>
 
 <script setup lang="ts">
@@ -250,9 +290,9 @@ type Segment = {
 type DragMode = 'move' | 'resize-start' | 'resize-end'
 
 const segments = ref<Segment[]>([
-  { id: 'seg-1', start: 1500, end: 5200, text: '第一句歌詞', color: '#2c2f33' },
-  { id: 'seg-2', start: 5200, end: 9800, text: '第二句歌詞', color: '#db4c3f' },
-  { id: 'seg-3', start: 10500, end: 13800, text: '第三句歌詞', color: '#2c2f33' },
+  { id: 'seg-1', start: 1500, end: 5200, text: 'First line', color: '#2c2f33' },
+  { id: 'seg-2', start: 5200, end: 9800, text: 'Second line', color: '#db4c3f' },
+  { id: 'seg-3', start: 10500, end: 13800, text: 'Third line', color: '#2c2f33' },
 ])
 const pxPerMs = ref(0.08)
 const zoomLevel = ref(80)
@@ -266,6 +306,7 @@ const snap = reactive({ grid: 10 })
 const importVisible = ref(false)
 const importText = ref('')
 const exportVisible = ref(false)
+const shortcutsVisible = ref(false)
 const exportFormat = ref<'srt' | 'lrc'>('srt')
 const undoStack = ref<Segment[][]>([])
 const redoStack = ref<Segment[][]>([])
