@@ -7,7 +7,7 @@
       </div>
     </a-layout-header>
     <a-layout class="main">
-      <a-layout-sider class="side left" width="320">
+      <a-layout-sider class="side left" :width="360">
         <div class="panel list-panel">
           <div class="panel-head">
             <h3>Lyrics</h3>
@@ -23,11 +23,10 @@
               :key="segment.id"
               class="lyric-item"
               :class="{
-                'is-selected': selectionIds.has(segment.id),
                 'is-playing': isSegmentPlaying(segment),
               }"
               :ref="setLyricItemRef(segment.id)"
-              @click="setSelection(segment.id, false)"
+              @click="selectSegmentFromList(segment)"
             >
               <div class="lyric-times">
                 <a-input-number
@@ -45,6 +44,25 @@
                   size="small"
                   @change="(value) => updateListEnd(segment.id, value)"
                 />
+                <div class="lyric-actions">
+                  <a-button
+                    size="small"
+                    shape="circle"
+                    :aria-label="'Play segment'"
+                    @click.stop="playSegment(segment)"
+                  >
+                    <icon-play-arrow />
+                  </a-button>
+                  <a-button
+                    size="small"
+                    shape="circle"
+                    status="danger"
+                    :aria-label="'Delete segment'"
+                    @click.stop="deleteSegment(segment.id)"
+                  >
+                    <icon-delete />
+                  </a-button>
+                </div>
               </div>
               <a-textarea
                 :model-value="segment.text"
@@ -126,7 +144,6 @@
               class="segment"
               :class="{
                 'is-selected': selectionIds.has(segment.id),
-                'is-playing': activePlayId === segment.id,
               }"
               :style="segmentStyle(segment)"
               @pointerdown="startDrag($event, segment, 'move')"
@@ -215,6 +232,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { IconDelete, IconPlayArrow } from '@arco-design/web-vue/es/icon'
 
 type Segment = {
   id: string
@@ -301,7 +319,17 @@ const setLyricItemRef = (id: string) => (el: Element | null) => {
 }
 
 const isSegmentPlaying = (segment: Segment) => {
-  return playheadMs.value >= segment.start && playheadMs.value <= segment.end
+  return playheadMs.value >= segment.start && playheadMs.value < segment.end
+}
+
+const setPlayheadMs = (ms: number) => {
+  playheadMs.value = snapValue(ms)
+  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
+    youtubePlayer.seekTo(playheadMs.value / 1000, true)
+  }
+  if (isPlaying.value) {
+    ensurePlayheadInView()
+  }
 }
 
 const timelineWidth = computed(() => {
@@ -617,13 +645,7 @@ const updatePlayheadFromEvent = (event: PointerEvent) => {
 const updatePlayheadFromX = (localX: number) => {
   const clampedX = Math.max(0, Math.min(localX, timelineWidth.value))
   const ms = clampedX / pxPerMs.value
-  playheadMs.value = snapValue(ms)
-  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
-    youtubePlayer.seekTo(playheadMs.value / 1000, true)
-  }
-  if (isPlaying.value) {
-    ensurePlayheadInView()
-  }
+  setPlayheadMs(ms)
 }
 
 const onTrackHoverMove = (event: PointerEvent) => {
@@ -906,9 +928,7 @@ const togglePlay = () => {
     stopPlay()
     return
   }
-  isPlaying.value = true
-  playLastTs = 0
-  playRaf = requestAnimationFrame(tickPlay)
+  startFakePlay()
 }
 
 const stopPlay = () => {
@@ -925,6 +945,38 @@ const stopFakePlay = () => {
   playLastTs = 0
   if (playRaf) cancelAnimationFrame(playRaf)
   playRaf = 0
+}
+
+const startFakePlay = () => {
+  if (isPlaying.value) return
+  isPlaying.value = true
+  playLastTs = 0
+  playRaf = requestAnimationFrame(tickPlay)
+}
+
+const playSegment = (segment: Segment) => {
+  setSelection(segment.id, false)
+  setPlayheadMs(segment.start)
+  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
+    youtubePlayer.playVideo()
+    return
+  }
+  startFakePlay()
+}
+
+const deleteSegment = (id: string) => {
+  pushHistorySnapshot(cloneSegments())
+  segments.value = segments.value.filter((segment) => segment.id !== id)
+  if (selectionIds.value.has(id)) {
+    const next = new Set(selectionIds.value)
+    next.delete(id)
+    selectionIds.value = next
+  }
+}
+
+const selectSegmentFromList = (segment: Segment) => {
+  setSelection(segment.id, false)
+  setPlayheadMs(segment.start)
 }
 
 const ensurePlayheadInView = () => {

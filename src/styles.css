@@ -244,12 +244,6 @@ html,
   outline-offset: 2px;
 }
 
-.segment.is-playing {
-  outline: 2px solid #63c6ff;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 2px rgba(99, 198, 255, 0.3), 0 8px 18px rgba(28, 28, 32, 0.2);
-}
-
 .playhead {
   position: absolute;
   top: 0;
@@ -400,6 +394,15 @@ html,
   min-height: 0;
 }
 
+.lyric-list {
+  scrollbar-width: none;
+}
+
+.lyric-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .lyric-item {
   display: flex;
   flex-direction: column;
@@ -423,8 +426,8 @@ html,
 }
 
 .lyric-times {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
+  align-items: center;
   align-items: center;
   gap: var(--space-1);
 }
@@ -441,6 +444,17 @@ html,
 
 .lyric-item :deep(.arco-textarea) {
   line-height: 1.2;
+}
+
+.lyric-times :deep(.arco-input-number) {
+  width: 78px;
+  font-size: 11px;
+}
+
+.lyric-actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-1);
 }
 
 .youtube-panel {
