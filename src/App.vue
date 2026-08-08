@@ -1,1351 +1,181 @@
-﻿<template>
-  <a-layout class="app-shell">
-    <a-layout-header class="topbar">
-      <div class="brand">Lyric Timeline Editor</div>
-      <div class="actions">
-        <a-button size="small" type="primary" @click="exportVisible = true">Export</a-button>
-        <a-button size="small" @click="shortcutsVisible = true">?</a-button>
+<template>
+  <div class="app-shell">
+    <a class="skip-link" href="#main-content">跳至主要內容</a>
+    <header class="lx-header">
+      <div class="lx-brand">
+        <svg class="lx-brand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
+        <span class="lx-brand-divider"></span>
+        <div><h1 class="lx-brand-title">Lyric Sync Editor</h1><div class="lx-brand-sub">歌詞同步編輯器 · 製作精準的 LRC / SRT 字幕</div></div>
       </div>
-    </a-layout-header>
-    <a-layout class="main">
-      <a-layout-sider class="side left" :width="360">
-        <div class="panel list-panel">
-          <div class="panel-head">
-            <h3>Lyrics</h3>
-            <a-button size="small" type="primary" @click="importVisible = true">Import SRT/LRC</a-button>
-          </div>
-          <div class="youtube-input">
-            <a-input v-model="youtubeUrl" size="small" placeholder="YouTube URL" />
-            <a-button size="small" @click="loadYouTube">Load</a-button>
-          </div>
-          <div ref="lyricListRef" class="lyric-list">
-            <div
-              v-for="segment in orderedSegments"
-              :key="segment.id"
-              class="lyric-item"
-              :class="{
-                'is-playing': isSegmentPlaying(segment),
-              }"
-              :ref="setLyricItemRef(segment.id)"
-              @click="selectSegmentFromList(segment)"
-            >
-              <div class="lyric-times">
-                <a-input-number
-                  :model-value="segment.start / 1000"
-                  :min="0"
-                  :step="0.01"
-                  size="small"
-                  @change="(value) => updateListStart(segment.id, value)"
-                />
-                <span class="time-sep">→</span>
-                <a-input-number
-                  :model-value="segment.end / 1000"
-                  :min="0"
-                  :step="0.01"
-                  size="small"
-                  @change="(value) => updateListEnd(segment.id, value)"
-                />
-                <div class="lyric-actions">
-                  <a-button
-                    size="small"
-                    shape="circle"
-                    :aria-label="'Play segment'"
-                    @click.stop="playSegment(segment)"
-                  >
-                    <icon-play-arrow />
-                  </a-button>
-                  <a-button
-                    size="small"
-                    shape="circle"
-                    status="danger"
-                    :aria-label="'Delete segment'"
-                    @click.stop="deleteSegment(segment.id)"
-                  >
-                    <icon-delete />
-                  </a-button>
-                </div>
-              </div>
-              <a-textarea
-                :model-value="segment.text"
-                :auto-size="{ minRows: 2, maxRows: 4 }"
-                @change="(value) => updateListText(segment.id, value)"
-              />
-            </div>
-          </div>
-        </div>
-      </a-layout-sider>
-      <a-layout-content class="timeline-pane">
-        <div v-if="youtubeVideoId" class="youtube-inline">
-          <div id="youtube-player"></div>
-        </div>
-        <div class="current-lyric">
-          {{ activePlayText || '—' }}
-        </div>
-        <div class="timeline-header">
-          <div class="control-row">
-            <div class="play-controls">
-              <a-button size="small" type="primary" @click="togglePlay">
-                {{ isPlaying ? 'Pause' : 'Play' }}
-              </a-button>
-              <a-button size="small" @click="stopPlay">Stop</a-button>
-              <span class="play-time">{{ formatClock(playheadMs) }}</span>
-              <span class="play-lyric">{{ activePlayText || '-' }}</span>
-            </div>
-            <div class="snap-controls">
-              <a-button size="small" @click="resolveOverlaps">Resolve Overlap</a-button>
-              <a-button size="small" @click="autoFollow = !autoFollow">
-                {{ autoFollow ? 'Auto Follow: On' : 'Auto Follow: Off' }}
-              </a-button>
-            </div>
-            <div class="zoom-controls">
-              <span>Zoom</span>
-              <a-slider
-                v-model="zoomLevel"
-                :min="5"
-                :max="160"
-                :step="5"
-                :style="{ width: '160px' }"
-              />
-            </div>
-          </div>
-          <div
-            ref="headerScrollRef"
-            class="scale-scroll"
-            @scroll="onHeaderScroll"
-            @pointerdown="onHeaderPointerDown"
-          >
-            <div class="scale-track" :style="{ width: `${timelineWidth}px` }">
-              <div
-                v-for="tick in ticks"
-                :key="tick"
-                class="scale-tick"
-                :class="{ major: tick % 1000 === 0 }"
-                :style="{ left: `${tick * pxPerMs}px` }"
-              >
-                <span v-if="tick % 1000 === 0" class="scale-label">
-                  {{ formatMark(tick) }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div ref="timelineScrollRef" class="timeline-scroll" @scroll="onTimelineScroll">
-          <div
-            ref="trackRef"
-            class="timeline-track"
-            :style="{ width: `${timelineWidth}px`, '--grid-step': `${gridStepPx}px` }"
-            @pointerdown="startBoxSelect"
-            @dblclick="onTrackDoubleClick"
-            @pointermove="onTrackHoverMove"
-            @pointerleave="onTrackHoverLeave"
-          >
-            <div
-              v-for="segment in segments"
-              :key="segment.id"
-              class="segment"
-              :class="{
-                'is-selected': selectionIds.has(segment.id),
-              }"
-              :style="segmentStyle(segment)"
-              @pointerdown="startDrag($event, segment, 'move')"
-            >
-              <span class="segment-text">{{ segment.text }}</span>
-              <span
-                class="handle start"
-                @pointerdown.stop.prevent="startDrag($event, segment, 'resize-start')"
-              ></span>
-              <span
-                class="handle end"
-                @pointerdown.stop.prevent="startDrag($event, segment, 'resize-end')"
-              ></span>
-            </div>
-            <div v-if="boxState.active" class="selection-box" :style="boxStyle"></div>
-            <div
-              v-if="snapIndicator.active"
-              class="snap-indicator"
-              :style="{ left: `${snapIndicator.x}px` }"
-            ></div>
-            <div
-              v-if="hoverState.active && !dragState"
-              class="hover-playhead"
-              :style="{ left: `${hoverState.x}px` }"
-            >
-              <span class="hover-time">{{ formatClock(hoverTimeMs) }}</span>
-            </div>
-            <div
-              class="playhead"
-              :style="{ left: `${playheadX}px` }"
-              @pointerdown.stop="startPlayheadDrag"
-            ></div>
-          </div>
-        </div>
-      </a-layout-content>
-    </a-layout>
-  </a-layout>
-  <a-modal
-    v-model:visible="importVisible"
-    title="Import SRT/LRC"
-    :ok-text="'Import'"
-    :cancel-text="'Cancel'"
-    :width="720"
-    @ok="applyImport"
-  >
-    <a-space direction="vertical" size="medium" fill>
-      <a-upload
-        :auto-upload="false"
-        :show-file-list="false"
-        accept=".srt,.lrc,.txt"
-        @change="handleFile"
-      >
-        <template #upload-button>
-          <a-button>Click to Upload</a-button>
-        </template>
-      </a-upload>
-      <a-textarea
-        v-model="importText"
-        placeholder="Paste SRT/LRC content here. Plain text is also supported (one line per lyric)."
-        :auto-size="{ minRows: 10, maxRows: 18 }"
-      />
-      <a-alert type="info" show-icon>
-        Supports SRT/LRC. Plain text is split by line breaks. If both file and pasted content are provided, pasted content wins.
-      </a-alert>
-    </a-space>
-  </a-modal>
-  <a-modal v-model:visible="exportVisible" title="Export" :width="720">
-    <a-space direction="vertical" size="medium" fill>
-      <a-select v-model="exportFormat" :style="{ width: '160px' }">
-        <a-option value="srt">SRT</a-option>
-        <a-option value="lrc">LRC</a-option>
-      </a-select>
-      <a-textarea
-        :model-value="exportText"
-        :auto-size="{ minRows: 10, maxRows: 18 }"
-        readonly
-      />
-    </a-space>
-    <template #footer>
-      <a-space>
-        <a-button @click="exportVisible = false">Cancel</a-button>
-        <a-button @click="copyExport">Copy</a-button>
-        <a-button type="primary" @click="downloadExport">Download</a-button>
-      </a-space>
-    </template>
-  </a-modal>
-  <a-modal
-    v-model:visible="shortcutsVisible"
-    title="Usage Guide"
-    :width="520"
-    :ok-text="'OK'"
-    :cancel-text="'Cancel'"
-  >
-    <a-space direction="vertical" size="small" fill>
-      <div class="usage-block">
-        <div class="usage-title">Import Lyrics</div>
-        <div class="usage-text">
-          Click “Import SRT/LRC” to upload SRT/LRC, or paste plain text (one line per lyric).
-        </div>
+      <div class="lx-header-actions">
+        <button class="btn btn-secondary" type="button" title="支援 .lrc, .srt, .txt" @click="importVisible = true"><FileInput :size="16" />匯入檔案</button>
+        <button class="btn btn-primary" type="button" @click="openExport"><Download :size="16" />匯出</button>
+        <button class="btn-icon" type="button" title="使用說明" aria-label="使用說明" @click="shortcutsVisible = true"><CircleHelp :size="17" /></button>
       </div>
-      <div class="usage-block">
-        <div class="usage-title">YouTube</div>
-        <div class="usage-text">
-          Paste a YouTube URL and click Load to sync the timeline with the video.
-        </div>
-      </div>
-      <div class="usage-block">
-        <div class="usage-title">Edit Lyrics</div>
-        <div class="usage-text">
-          Drag segments to move, drag edges to resize. Use the left list to edit times,
-          text, play, or delete a segment.
-        </div>
-      </div>
-      <div class="usage-block">
-        <div class="usage-title">Export</div>
-        <div class="usage-text">Use Export to copy or download SRT/LRC.</div>
-      </div>
-      <div class="usage-divider"></div>
-      <a-descriptions :column="1" size="small" bordered>
-        <a-descriptions-item label="Play/Pause">Space</a-descriptions-item>
-        <a-descriptions-item label="Zoom In">+</a-descriptions-item>
-        <a-descriptions-item label="Zoom Out">-</a-descriptions-item>
-        <a-descriptions-item label="Undo">Ctrl/Cmd + Z</a-descriptions-item>
-        <a-descriptions-item label="Redo">Shift + Ctrl/Cmd + Z</a-descriptions-item>
-        <a-descriptions-item label="Delete Segment">Delete / Backspace</a-descriptions-item>
-      </a-descriptions>
-    </a-space>
-  </a-modal>
+    </header>
+
+    <main id="main-content" class="lx-main">
+      <section class="col" aria-label="媒體與歌曲設定">
+        <section class="card">
+          <div class="row-between"><h2 class="card-title"><span class="title-icon">◉</span>音訊 / 影片來源</h2></div>
+          <div class="seg" role="tablist">
+            <button v-for="option in mediaOptions" :key="option.value" :class="{ 'is-active': media.mode.value === option.value }" type="button" role="tab" :aria-selected="media.mode.value === option.value" @click="selectMediaMode(option.value)">{{ option.label }}</button>
+          </div>
+          <div v-if="media.mode.value === 'none'" class="empty-state"><span class="empty-state-icon">♧</span><p>純文字編輯模式</p><p class="empty-state-note">可隨時切換至 YouTube 或本機音檔配樂</p></div>
+          <form v-else-if="media.mode.value === 'youtube'" class="col-gap" @submit.prevent="loadYouTubeVideo">
+            <label class="field-label" for="youtube-url">YouTube 網址</label>
+            <div class="row"><input id="youtube-url" v-model="youtubeInput" class="input" type="url" placeholder="貼上 YouTube 網址…" /><button class="btn btn-primary" type="submit">{{ media.isLoading.value ? '載入中' : '載入' }}</button></div>
+            <div class="yt-frame"><div ref="youtubeMount" class="youtube-player"></div><div v-if="!media.youtubeVideoId.value" class="yt-placeholder"><span class="empty-state-icon">▶</span><p>輸入 YouTube 影片網址並點擊載入</p><p class="url-example">https://youtube.com/watch?v=…</p></div></div>
+          </form>
+          <div v-else class="col-gap">
+            <label class="field-label" for="audio-upload">本機音檔</label>
+            <label class="drop-zone" for="audio-upload"><span class="drop-icon">↥</span><strong>{{ localFileName || '選擇音樂檔案' }}</strong><span>支援 MP3、WAV、M4A 等格式</span><input id="audio-upload" type="file" accept="audio/*" @change="handleAudioUpload" /></label>
+            <audio ref="audioRef" class="audio-player" controls></audio>
+          </div>
+          <p v-if="media.errorMessage.value" class="inline-error" role="alert">{{ media.errorMessage.value }}</p>
+        </section>
+
+        <section class="card">
+          <h3 class="card-title">設定與操作</h3>
+          <div class="col-gap"><span class="label">歌曲資訊 · Metadata</span><input id="meta-title" v-model="project.metadata.title" class="input" type="text" placeholder="歌曲名稱 (ti)" /><input id="meta-artist" v-model="project.metadata.artist" class="input" type="text" placeholder="歌手 / 演出者 (ar)" /><input id="meta-album" v-model="project.metadata.album" class="input" type="text" placeholder="專輯名稱 (al)" /></div>
+          <div class="hint-block"><div class="hint-title"><Keyboard :size="14" />同步模式快捷鍵</div><div class="hint-row"><span><kbd>Space</kbd></span><span class="lbl">打上時間並跳至下一行</span></div><div class="hint-row"><span><kbd>Shift</kbd><kbd>Space</kbd></span><span class="lbl">播放 / 暫停</span></div><div class="hint-row"><span><kbd>Enter</kbd></span><span class="lbl">清除當前行時間</span></div><div class="hint-row"><span><kbd>↑ ↓</kbd></span><span class="lbl">切換選取行</span></div></div>
+        </section>
+      </section>
+
+      <section class="col">
+        <nav class="tabs" aria-label="編輯步驟"><div class="tab-list" role="tablist"><button v-for="tab in tabs" :key="tab.value" class="tab" :class="{ 'is-active': currentTab === tab.value }" type="button" role="tab" :aria-selected="currentTab === tab.value" @click="switchTab(tab.value)"><span class="tab-num">{{ Number(tab.number) }}</span>{{ tab.label }}</button></div><div class="time-display" :class="{ 'is-playing': isPlaying }"><span class="dot"></span><span>時間 <strong>{{ formatClock(playheadMs) }}</strong></span></div></nav>
+
+        <section v-if="currentTab === 'edit'" class="panel-body">
+          <div class="panel-toprow"><span>直接輸入或貼上歌詞 · 系統會自動辨識 LRC / SRT 並轉換時間軸</span><button class="danger-link" type="button" @click="clearLyrics">⌫ 清空歌詞</button></div>
+          <textarea v-model="editableText" class="textarea" spellcheck="false" placeholder="在此處輸入或貼上歌詞…&#10;&#10;例：&#10;第一行歌詞&#10;第二行歌詞&#10;&#10;支援 LRC 或 SRT 字幕，系統會自動轉換時間軸"></textarea>
+        </section>
+
+        <section v-else-if="currentTab === 'sync'" class="panel-body">
+          <div class="sync-view-guidance"><span class="sync-view-copy">用列表逐行打點，或切換時間軸微調區段起訖。</span><div class="sync-mode-switch"><span class="sync-mode-label">同步方式</span><div class="view-switch" role="tablist" aria-label="同步方式"><button class="view-switch-button" :class="{ 'is-active': syncView === 'list' }" type="button" @click="syncView = 'list'"><List :size="14" />列表打點</button><button class="view-switch-button" :class="{ 'is-active': syncView === 'timeline' }" type="button" @click="syncView = 'timeline'"><SlidersHorizontal :size="14" />時間軸微調</button></div></div></div>
+          <template v-if="syncView === 'list'">
+            <div class="sync-banner"><span class="msg">音樂播放時，於目標時間點按下 <kbd>Space</kbd> 即可為該行打上時間並跳至下一行。</span><button class="btn btn-ghost btn-sm" type="button" @click="resetTimestamps">重設所有時間</button></div>
+            <div class="sync-toolbar"><div class="player-cluster"><button class="play-btn" type="button" :aria-label="isPlaying ? '暫停' : '播放'" @click="togglePlayback"><Pause v-if="isPlaying" :size="15" fill="currentColor" /><Play v-else :size="15" fill="currentColor" /></button><div class="speed-pill"><button type="button" @click="adjustPlaybackRate(-0.1)">−</button><span class="indicator">{{ project.playbackRate.toFixed(1) }}×</span><button type="button" @click="adjustPlaybackRate(0.1)">＋</button></div><span class="sync-time">{{ formatClock(playheadMs) }}</span></div><button class="btn btn-primary" type="button" @click="stampActiveLine"><CircleDot :size="15" />打上當前時間 · Space</button></div>
+            <div class="sync-list" aria-label="歌詞同步列表">
+              <div v-if="orderedLines.length === 0" class="list-empty"><span class="empty-kicker">NO LYRICS</span><strong>尚無歌詞文字</strong><span>回到第一步貼上歌詞後開始同步。</span></div>
+              <article v-for="(line, index) in orderedLines" :id="'sync-line-' + line.id" :key="line.id" class="sync-line" :class="{ 'is-active': project.activeLineId === line.id, 'is-playing': isLinePlaying(line) }" @click="selectLine(line)">
+                <div class="sync-line-main"><span class="line-number">{{ String(index + 1).padStart(2, '0') }}</span><div class="line-time-fields"><input class="time-input" type="number" min="0" step="0.01" :value="line.startMs === null ? '' : line.startMs / 1000" placeholder="開始" aria-label="開始時間（秒）" @change="updateLineStart(line.id, $event.target.value)" /><span>→</span><input class="time-input" type="number" min="0" step="0.01" :value="line.endMs === null ? '' : line.endMs / 1000" placeholder="結束" aria-label="結束時間（秒）" @change="updateLineEnd(line.id, $event.target.value)" /></div><textarea class="line-text-input" :value="line.text" rows="1" aria-label="歌詞文字" @focus="beginTextEdit(line.id)" @input="updateLineText(line.id, $event)" @blur="finishTextEdit(line.id)" @click.stop></textarea></div>
+                <div class="sync-line-actions"><span class="line-number">{{ String(index + 1).padStart(2, '0') }}</span><button v-if="line.startMs !== null" class="line-action danger" type="button" @click.stop="clearLineStamp(line.id)">清除</button><button class="line-action" type="button" @click.stop="stampLine(line.id)">打點</button></div>
+              </article>
+            </div>
+          </template>
+          <TimelineEditor v-else :lines="project.lines" :playhead-ms="playheadMs" :selection-ids="selectionIds" :is-playing="isPlaying" :auto-follow="autoFollow" :media-duration-ms="durationMs" @update:lines="onTimelineLinesUpdate" @update:playhead-ms="setPlayhead" @update:selection-ids="selectionIds = new Set($event)" @update:auto-follow="autoFollow = $event" @history="recordHistory($event)" @undo="undo" @redo="redo" @toggle-play="togglePlayback" @stop-play="stopPlayback" />
+        </section>
+
+        <section v-else class="panel-body">
+          <div class="preview-shell"><div class="preview-controls"><button class="skip-btn" type="button" @click="skipPlayback(-5)">← 5s</button><button class="play-btn play-btn-lg" type="button" @click="togglePlayback">{{ isPlaying ? 'Ⅱ' : '▶' }}</button><button class="skip-btn" type="button" @click="skipPlayback(5)">5s →</button><span class="preview-time">{{ formatClock(playheadMs) }}</span></div>
+          <div ref="previewRef" class="karaoke"><div v-if="timedLines.length === 0" class="empty-state"><span class="empty-state-icon">♫</span><p>尚未有任何時間標記歌詞</p><p class="empty-state-note">請至「製作時間同步」為歌詞打上時間軸</p></div><button v-for="line in timedLines" :id="'preview-line-' + line.id" :key="line.id" class="karaoke-line" :class="{ 'is-active': activePlaybackLine?.id === line.id }" type="button" @click="seekTo(line.startMs ?? 0)">{{ line.text || '空白行' }}</button></div></div>
+        </section>
+      </section>
+    </main>
+    <footer class="lx-footer">© 2026 Lyric Sync Editor <span class="dot">·</span> 免安裝 · 無廣告 · 支援 LRC / SRT 格式</footer>
+
+    <div v-if="importVisible" class="modal-backdrop" @click.self="importVisible = false"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="import-title"><div class="modal-heading"><div><span class="content-kicker">IMPORT</span><h2 id="import-title">匯入歌詞</h2></div><button class="modal-close" type="button" @click="importVisible = false">×</button></div><label class="drop-zone compact-drop" for="import-file"><span class="drop-icon">↥</span><strong>選擇 LRC、SRT 或 TXT</strong><span>也可以直接在下方貼上內容</span><input id="import-file" type="file" accept=".lrc,.srt,.txt,text/plain" @change="handleImportFile" /></label><label class="field-label" for="import-text">歌詞內容</label><textarea id="import-text" v-model="importText" class="modal-textarea" placeholder="貼上 LRC、SRT 或純文字歌詞。"></textarea><p class="modal-hint">ⓘ 純文字會保留為未定時歌詞。</p><div class="modal-actions"><button class="btn btn-secondary" type="button" @click="importVisible = false">取消</button><button class="btn btn-primary" type="button" :disabled="!importText.trim()" @click="applyImport">匯入內容</button></div></section></div>
+    <div v-if="exportVisible" class="modal-backdrop" @click.self="exportVisible = false"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="export-title"><div class="modal-heading"><div><span class="content-kicker">EXPORT</span><h2 id="export-title">匯出歌詞</h2></div><button class="modal-close" type="button" aria-label="關閉匯出視窗" @click="exportVisible = false"><X :size="18" /></button></div><div class="format-picker"><button class="format-option" :class="{ 'is-active': exportFormat === 'lrc' }" type="button" @click="exportFormat = 'lrc'"><FileText :size="14" />LRC</button><button class="format-option" :class="{ 'is-active': exportFormat === 'srt' }" type="button" @click="exportFormat = 'srt'"><FileText :size="14" />SRT</button></div><textarea class="modal-textarea export-preview" :value="exportText" readonly></textarea><div class="modal-actions"><button class="btn btn-secondary" type="button" @click="copyExport"><Copy :size="15" />複製內容</button><button class="btn btn-primary" type="button" @click="downloadExport"><Download :size="15" />下載檔案</button></div></section></div>
+    <div v-if="shortcutsVisible" class="modal-backdrop" @click.self="shortcutsVisible = false"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="guide-title"><div class="modal-heading"><div><span class="content-kicker">QUICK GUIDE</span><h2 id="guide-title">使用說明</h2></div><button class="modal-close" type="button" @click="shortcutsVisible = false">×</button></div><div class="guide-grid"><article><span class="guide-number">01</span><h3>輸入歌詞</h3><p>貼上純文字、LRC 或 SRT。</p></article><article><span class="guide-number">02</span><h3>同步時間</h3><p>列表適合逐行打點，時間軸適合微調。</p></article><article><span class="guide-number">03</span><h3>接上媒體</h3><p>支援 YouTube、本機音檔與無媒體預覽。</p></article><article><span class="guide-number">04</span><h3>輸出成果</h3><p>匯出 LRC 或 SRT 並下載。</p></article></div><div class="guide-shortcuts"><div><kbd>Space</kbd><span>列表打點 / 時間軸播放</span></div><div><kbd>Ctrl/Cmd + Z</kbd><span>復原</span></div><div><kbd>Shift + Ctrl/Cmd + Z</kbd><span>重做</span></div><div><kbd>Delete</kbd><span>刪除時間軸選取</span></div></div><div class="modal-actions"><button class="btn btn-primary" type="button" @click="shortcutsVisible = false">知道了</button></div></section></div>
+    <div v-if="toast.visible" class="toast" :class="'toast-' + toast.tone" role="status"><span class="status-dot"></span>{{ toast.message }}</div><div class="sr-only" aria-live="polite">{{ statusMessage }}</div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { IconDelete, IconPlayArrow } from '@arco-design/web-vue/es/icon'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import TimelineEditor from './components/TimelineEditor.vue'
+import { useMediaController } from './composables/useMediaController'
+import { CircleDot, CircleHelp, Copy, Download, FileInput, FileText, Keyboard, List, Pause, Play, SlidersHorizontal, X } from '@lucide/vue'
+import { buildLrc, buildSrt, formatClock, isTimedLine, parseLyrics, sortLinesForDisplay } from './utils/lyric-format'
+import { loadProject, saveProject } from './utils/storage'
+import { cloneLines, createProject, type ExportFormat, type LyricLine, type MediaMode, type Project } from './types'
 
-type Segment = {
-  id: string
-  start: number
-  end: number
-  text: string
-  color?: string
-}
-
-type DragMode = 'move' | 'resize-start' | 'resize-end'
-
-const segments = ref<Segment[]>([
-  { id: 'seg-1', start: 1500, end: 5200, text: 'First line', color: '#2c2f33' },
-  { id: 'seg-2', start: 5200, end: 9800, text: 'Second line', color: '#db4c3f' },
-  { id: 'seg-3', start: 10500, end: 13800, text: 'Third line', color: '#2c2f33' },
-])
-const pxPerMs = ref(0.08)
-const zoomLevel = ref(80)
-const minDuration = 300
-const selectionIds = ref(new Set<string>())
-const autoFollow = ref(true)
-const trackRef = ref<HTMLElement | null>(null)
-const timelineScrollRef = ref<HTMLElement | null>(null)
-const headerScrollRef = ref<HTMLElement | null>(null)
-const snap = reactive({ grid: 10 })
+type Tab = 'edit' | 'sync' | 'preview'
+type SyncView = 'list' | 'timeline'
+const DEFAULT_LYRICS = '[ti:示範歌曲]\n[ar:Lyric Sync Editor]\n[al:Local-first demo]\n[00:01.50]歡迎使用歌詞同步編輯器\n[00:05.20]在列表中按下空白鍵開始打點\n[00:09.80]切換時間軸可以調整歌詞區段\n[00:14.00]也可以貼上 YouTube 或載入本機音檔\n[00:18.50]完成後匯出 LRC 或 SRT'
+const initialProject = (): Project => { const saved = loadProject(); if (saved) return saved; const parsed = parseLyrics(DEFAULT_LYRICS); const next = createProject(parsed.lines); next.metadata = parsed.metadata; return next }
+const project = ref<Project>(initialProject())
+const currentTab = ref<Tab>('edit')
+const syncView = ref<SyncView>('list')
+const editableText = ref(buildLrc(project.value.lines, project.value.metadata))
 const importVisible = ref(false)
 const importText = ref('')
 const exportVisible = ref(false)
 const shortcutsVisible = ref(false)
-const exportFormat = ref<'srt' | 'lrc'>('srt')
-const undoStack = ref<Segment[][]>([])
-const redoStack = ref<Segment[][]>([])
-let dragSnapshot: Segment[] | null = null
-let hasPendingDrag = false
+const exportFormat = ref<ExportFormat>('lrc')
+const selectionIds = ref(new Set<string>())
+const autoFollow = ref(true)
 const playheadMs = ref(0)
-const isPlaying = ref(false)
-let playLastTs = 0
-let playRaf = 0
-const youtubeUrl = ref('')
-const youtubeVideoId = ref('')
-const youtubeEnabled = ref(true)
-const youtubeReady = ref(false)
-const isYouTubePlaying = ref(false)
-let youtubePlayer: any = null
-let youtubeRaf = 0
-const youtubeDurationMs = ref(0)
-let youtubeLoadTimer = 0
-
-const tickStepMs = computed(() => {
-  const target = 100 / pxPerMs.value
-  const options = [500, 1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000]
-  return options.find((step) => step >= target) ?? options[options.length - 1]
-})
-
-const ticks = computed(() => {
-  const durationMs = Math.ceil(timelineWidth.value / pxPerMs.value)
-  const result: number[] = []
-  for (let t = 0; t <= durationMs; t += tickStepMs.value) {
-    result.push(t)
-  }
-  return result
-})
-
-const gridStepPx = computed(() => {
-  const step = pxPerMs.value * 1000
-  return Math.max(24, Math.round(step))
-})
-
-const playheadX = computed(() => playheadMs.value * pxPerMs.value)
-const activePlaySegment = computed(() =>
-  segments.value.find((segment) => playheadMs.value >= segment.start && playheadMs.value <= segment.end),
-)
-const activePlayId = computed(() => activePlaySegment.value?.id ?? '')
-const activePlayText = computed(() => activePlaySegment.value?.text ?? '')
-const orderedSegments = computed(() => [...segments.value].sort((a, b) => a.start - b.start))
-const lyricListRef = ref<HTMLElement | null>(null)
-const lyricItemRefs = new Map<string, HTMLElement>()
-
-const setLyricItemRef = (id: string) => (el: Element | null) => {
-  if (el instanceof HTMLElement) {
-    lyricItemRefs.set(id, el)
-  } else {
-    lyricItemRefs.delete(id)
-  }
-}
-
-const isSegmentPlaying = (segment: Segment) => {
-  return playheadMs.value >= segment.start && playheadMs.value < segment.end
-}
-
-const setPlayheadMs = (ms: number) => {
-  playheadMs.value = snapValue(ms)
-  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
-    youtubePlayer.seekTo(playheadMs.value / 1000, true)
-  }
-  if (isPlaying.value) {
-    ensurePlayheadInView()
-  }
-}
-
-const timelineWidth = computed(() => {
-  const maxEnd = Math.max(0, ...segments.value.map((segment) => segment.end))
-  const maxDuration = Math.max(maxEnd, youtubeEnabled.value ? youtubeDurationMs.value : 0)
-  const base = maxDuration * pxPerMs.value + 400
-  return Math.max(900, Math.round(base))
-})
-
-const timelineDuration = computed(() => {
-  const maxEnd = Math.max(0, ...segments.value.map((segment) => segment.end))
-  return Math.max(maxEnd, youtubeEnabled.value ? youtubeDurationMs.value : 0)
-})
-const formatMark = (ms: number) => {
-  const totalSeconds = Math.floor(ms / 1000)
-  const mm = Math.floor(totalSeconds / 60)
-  const ss = totalSeconds % 60
-  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
-}
-
-const formatClock = (ms: number) => {
-  const totalSeconds = Math.floor(ms / 1000)
-  const mm = Math.floor(totalSeconds / 60)
-  const ss = totalSeconds % 60
-  const cs = Math.floor((ms % 1000) / 10)
-  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}.${String(
-    cs,
-  ).padStart(2, '0')}`
-}
-
-const segmentStyle = (segment: Segment) => {
-  const left = segment.start * pxPerMs.value
-  const width = Math.max((segment.end - segment.start) * pxPerMs.value, 16)
-  return {
-    left: `${left}px`,
-    width: `${width}px`,
-    background: segment.color ?? '#2c2f33',
-  }
-}
-
-watch(
-  zoomLevel,
-  (value) => {
-    pxPerMs.value = value / 1000
-  },
-  { immediate: true },
-)
-
-watch(youtubeEnabled, (enabled) => {
-  if (!enabled) {
-    stopYouTubeTick()
-    isYouTubePlaying.value = false
-    if (youtubePlayer) {
-      youtubePlayer.pauseVideo()
-    }
-  }
-})
-
-watch(activePlayId, (id) => {
-  if (!id) return
-  nextTick(() => {
-    const container = lyricListRef.value
-    const item = lyricItemRefs.get(id)
-    if (!container || !item) return
-    item.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  })
-})
-
-const cloneSegments = () => segments.value.map((segment) => ({ ...segment }))
-
-const updateSegment = (id: string, patch: Partial<Segment>) => {
-  segments.value = segments.value.map((segment) =>
-    segment.id === id ? { ...segment, ...patch } : segment,
-  )
-}
-
-const parseInputNumber = (value: unknown) => {
-  if (typeof value === 'number') return value
-  if (typeof value === 'string') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
-}
-
-const updateListStart = (id: string, value: unknown) => {
-  const segment = segments.value.find((item) => item.id === id)
-  const nextSec = parseInputNumber(value)
-  if (!segment || nextSec === null) return
-  const nextStart = Math.max(0, Math.round(nextSec * 1000))
-  const nextEnd = Math.max(nextStart + minDuration, segment.end)
-  updateSegment(id, { start: Math.min(nextStart, nextEnd - minDuration), end: nextEnd })
-}
-
-const updateListEnd = (id: string, value: unknown) => {
-  const segment = segments.value.find((item) => item.id === id)
-  const nextSec = parseInputNumber(value)
-  if (!segment || nextSec === null) return
-  const nextEnd = Math.max(segment.start + minDuration, Math.round(nextSec * 1000))
-  updateSegment(id, { end: nextEnd })
-}
-
-const updateListText = (id: string, value: unknown) => {
-  const text = typeof value === 'string' ? value : String(value ?? '')
-  updateSegment(id, { text })
-}
-
-const resolveOverlaps = () => {
-  if (segments.value.length < 2) return
-  pushHistorySnapshot(cloneSegments())
-  const ordered = [...segments.value].sort((a, b) => a.start - b.start)
-  let cursor = 0
-  const next = ordered.map((segment) => {
-    const duration = Math.max(minDuration, segment.end - segment.start)
-    const start = Math.max(cursor, segment.start)
-    const end = start + duration
-    cursor = end
-    return { ...segment, start, end }
-  })
-  segments.value = next
-}
-
-const setSelection = (id: string, additive: boolean) => {
-  const next = new Set(selectionIds.value)
-  if (additive) {
-    if (next.has(id)) {
-      next.delete(id)
-    } else {
-      next.add(id)
-    }
-  } else {
-    next.clear()
-    next.add(id)
-  }
-  selectionIds.value = next
-}
-
-const clearSelection = () => {
-  selectionIds.value = new Set<string>()
-}
-
-const snapValue = (value: number) => {
-  return Math.round(value / snap.grid) * snap.grid
-}
-
-const snapThresholdPx = 8
-const getSnapThresholdMs = () => {
-  return snapThresholdPx / pxPerMs.value
-}
-
-const snapToNeighbors = (value: number, excludeIds: Set<string>) => {
-  let best = value
-  let snapped = false
-  const threshold = getSnapThresholdMs()
-  let bestDistance = threshold + 1
-  segments.value.forEach((segment) => {
-    if (excludeIds.has(segment.id)) return
-    const boundaries = [segment.start, segment.end]
-    boundaries.forEach((boundary) => {
-      const distance = Math.abs(boundary - value)
-      if (distance <= threshold && distance < bestDistance) {
-        bestDistance = distance
-        best = boundary
-        snapped = true
-      }
-    })
-  })
-  return { value: best, snapped }
-}
-
-const getMoveSnapOffset = (
-  baseOffset: number,
-  items: Array<{ id: string; start: number; end: number }>,
-  excludeIds: Set<string>,
-) => {
-  let bestAdjustment = 0
-  let bestDistance = getSnapThresholdMs() + 1
-  let bestSnapValue = 0
-  items.forEach((item) => {
-    const boundaries = [item.start, item.end]
-    boundaries.forEach((boundary) => {
-      const target = boundary + baseOffset
-      const snapped = snapToNeighbors(target, excludeIds)
-      if (!snapped.snapped) return
-      const adjustment = snapped.value - target
-      const distance = Math.abs(adjustment)
-      if (distance < bestDistance) {
-        bestDistance = distance
-        bestAdjustment = adjustment
-        bestSnapValue = snapped.value
-      }
-    })
-  })
-  return { offset: baseOffset + bestAdjustment, snapped: bestDistance <= getSnapThresholdMs(), snapValue: bestSnapValue }
-}
-
-const dragState = ref<{
-  mode: DragMode
-  originX: number
-  items: Array<{ id: string; start: number; end: number }>
-} | null>(null)
-
-const startDrag = (event: PointerEvent, segment: Segment, mode: DragMode) => {
-  if (event.button !== 0) return
-  const wasSelected = selectionIds.value.has(segment.id)
-  if (event.shiftKey) {
-    setSelection(segment.id, true)
-  } else if (!wasSelected) {
-    setSelection(segment.id, false)
-  }
-  const ids = Array.from(selectionIds.value)
-  const targets = ids.length > 0 ? ids : [segment.id]
-  const items = segments.value
-    .filter((item) => targets.includes(item.id))
-    .map((item) => ({ id: item.id, start: item.start, end: item.end }))
-  dragState.value = {
-    mode,
-    originX: event.clientX,
-    items,
-  }
-  dragSnapshot = cloneSegments()
-  hasPendingDrag = false
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-  window.addEventListener('pointermove', onPointerMove)
-  window.addEventListener('pointerup', onPointerUp)
-}
-
-const onPointerMove = (event: PointerEvent) => {
-  if (!dragState.value) return
-  const { mode, originX, items } = dragState.value
-  const deltaMs = (event.clientX - originX) / pxPerMs.value
-  const excludeIds = new Set(items.map((item) => item.id))
-  if (mode === 'move') {
-    const anchor = items[0]
-    const targetStart = snapValue(anchor.start + deltaMs)
-    const baseOffset = targetStart - anchor.start
-    const snappedMove = getMoveSnapOffset(baseOffset, items, excludeIds)
-    const minStart = Math.min(...items.map((item) => item.start))
-    const offset = Math.max(snappedMove.offset, -minStart)
-    items.forEach((item) => {
-      updateSegment(item.id, {
-        start: item.start + offset,
-        end: item.end + offset,
-      })
-    })
-    snapIndicator.active = snappedMove.snapped
-    snapIndicator.x = snappedMove.snapValue * pxPerMs.value
-    hasPendingDrag = true
-    return
-  }
-  if (mode === 'resize-start') {
-    const item = items[0]
-    const snapped = snapValue(item.start + deltaMs)
-    const snappedStart = snapToNeighbors(snapped, excludeIds)
-    const nextStart = Math.max(0, Math.min(snappedStart.value, item.end - minDuration))
-    updateSegment(item.id, { start: nextStart })
-    snapIndicator.active = snappedStart.snapped
-    snapIndicator.x = snappedStart.value * pxPerMs.value
-    hasPendingDrag = true
-    return
-  }
-  const item = items[0]
-  const snapped = snapValue(item.end + deltaMs)
-  const snappedEnd = snapToNeighbors(snapped, excludeIds)
-  const nextEnd = Math.max(item.start + minDuration, snappedEnd.value)
-  updateSegment(item.id, { end: nextEnd })
-  snapIndicator.active = snappedEnd.snapped
-  snapIndicator.x = snappedEnd.value * pxPerMs.value
-  hasPendingDrag = true
-}
-
-const onPointerUp = () => {
-  dragState.value = null
-  boxState.active = false
-  snapIndicator.active = false
-  if (hasPendingDrag && dragSnapshot) {
-    pushHistorySnapshot(dragSnapshot)
-  }
-  dragSnapshot = null
-  hasPendingDrag = false
-  window.removeEventListener('pointermove', onPointerMove)
-  window.removeEventListener('pointerup', onPointerUp)
-}
-
-onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', onPointerMove)
-  window.removeEventListener('pointerup', onPointerUp)
-})
-
-let syncingScroll = false
-
-const onTimelineScroll = () => {
-  if (syncingScroll) return
-  if (!timelineScrollRef.value || !headerScrollRef.value) return
-  syncingScroll = true
-  headerScrollRef.value.scrollLeft = timelineScrollRef.value.scrollLeft
-  syncingScroll = false
-}
-
-const onHeaderScroll = () => {
-  if (syncingScroll) return
-  if (!timelineScrollRef.value || !headerScrollRef.value) return
-  syncingScroll = true
-  timelineScrollRef.value.scrollLeft = headerScrollRef.value.scrollLeft
-  syncingScroll = false
-}
-
-const boxState = reactive({
-  active: false,
-  startX: 0,
-  startY: 0,
-  currentX: 0,
-  currentY: 0,
-})
-const hoverState = reactive({
-  active: false,
-  x: 0,
-})
-const hoverTimeMs = computed(() => Math.max(0, Math.round(hoverState.x / pxPerMs.value)))
-const snapIndicator = reactive({
-  active: false,
-  x: 0,
-})
-const boxPending = ref(false)
-const boxDragThreshold = 4
-
-const boxStyle = computed(() => {
-  const left = Math.min(boxState.startX, boxState.currentX)
-  const top = Math.min(boxState.startY, boxState.currentY)
-  const width = Math.abs(boxState.currentX - boxState.startX)
-  const height = Math.abs(boxState.currentY - boxState.startY)
-  return {
-    left: `${left}px`,
-    top: `${top}px`,
-    width: `${width}px`,
-    height: `${height}px`,
-  }
-})
-
-const startBoxSelect = (event: PointerEvent) => {
-  if (event.button !== 0) return
-  if (event.target !== trackRef.value) return
-  clearSelection()
-  const rect = trackRef.value.getBoundingClientRect()
-  const localX = event.clientX - rect.left
-  const localY = event.clientY - rect.top
-  boxState.startX = localX
-  boxState.startY = localY
-  boxState.currentX = localX
-  boxState.currentY = localY
-  boxPending.value = true
-  window.addEventListener('pointermove', onBoxMove)
-  window.addEventListener('pointerup', onBoxUp)
-}
-
-const startPlayheadDrag = (event: PointerEvent) => {
-  if (event.button !== 0) return
-  updatePlayheadFromEvent(event)
-  window.addEventListener('pointermove', onPlayheadMove)
-  window.addEventListener('pointerup', onPlayheadUp)
-}
-
-const onPlayheadMove = (event: PointerEvent) => {
-  updatePlayheadFromEvent(event)
-}
-
-const onPlayheadUp = () => {
-  window.removeEventListener('pointermove', onPlayheadMove)
-  window.removeEventListener('pointerup', onPlayheadUp)
-}
-
-const updatePlayheadFromEvent = (event: PointerEvent) => {
-  if (!trackRef.value) return
-  const rect = trackRef.value.getBoundingClientRect()
-  const localX = event.clientX - rect.left
-  updatePlayheadFromX(localX)
-}
-
-const updatePlayheadFromX = (localX: number) => {
-  const clampedX = Math.max(0, Math.min(localX, timelineWidth.value))
-  const ms = clampedX / pxPerMs.value
-  setPlayheadMs(ms)
-}
-
-const onTrackHoverMove = (event: PointerEvent) => {
-  if (!trackRef.value) return
-  const rect = trackRef.value.getBoundingClientRect()
-  const localX = event.clientX - rect.left
-  hoverState.x = Math.max(0, Math.min(localX, timelineWidth.value))
-  hoverState.active = true
-}
-
-const onTrackHoverLeave = () => {
-  hoverState.active = false
-}
-
-const onHeaderPointerDown = (event: PointerEvent) => {
-  if (event.button !== 0) return
-  if (!headerScrollRef.value) return
-  const rect = headerScrollRef.value.getBoundingClientRect()
-  const localX = event.clientX - rect.left + headerScrollRef.value.scrollLeft
-  updatePlayheadFromX(localX)
-  headerDragActive.value = true
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-  window.addEventListener('pointermove', onHeaderPointerMove)
-  window.addEventListener('pointerup', onHeaderPointerUp)
-}
-
-const headerDragActive = ref(false)
-
-const onHeaderPointerMove = (event: PointerEvent) => {
-  if (!headerDragActive.value || !headerScrollRef.value) return
-  const rect = headerScrollRef.value.getBoundingClientRect()
-  const localX = event.clientX - rect.left + headerScrollRef.value.scrollLeft
-  updatePlayheadFromX(localX)
-}
-
-const onHeaderPointerUp = () => {
-  headerDragActive.value = false
-  window.removeEventListener('pointermove', onHeaderPointerMove)
-  window.removeEventListener('pointerup', onHeaderPointerUp)
-}
-
-const onTrackDoubleClick = (event: MouseEvent) => {
-  if (!trackRef.value) return
-  const rect = trackRef.value.getBoundingClientRect()
-  const localX = event.clientX - rect.left
-  const start = snapValue(localX / pxPerMs.value)
-  const end = start + Math.max(minDuration, 1200)
-  const nextId = `seg-${Date.now()}`
-  pushHistorySnapshot(cloneSegments())
-  segments.value = [
-    ...segments.value,
-    { id: nextId, start, end, text: 'New line', color: '#2c2f33' },
-  ]
-  selectionIds.value = new Set([nextId])
-}
-
-const onBoxMove = (event: PointerEvent) => {
-  if (!trackRef.value) return
-  const rect = trackRef.value.getBoundingClientRect()
-  boxState.currentX = event.clientX - rect.left
-  boxState.currentY = event.clientY - rect.top
-  if (boxPending.value && !boxState.active) {
-    const dx = boxState.currentX - boxState.startX
-    const dy = boxState.currentY - boxState.startY
-    const distance = Math.hypot(dx, dy)
-    if (distance < boxDragThreshold) return
-    boxState.active = true
-    boxPending.value = false
-    clearSelection()
-  }
-  if (!boxState.active) return
-  const left = Math.min(boxState.startX, boxState.currentX)
-  const right = Math.max(boxState.startX, boxState.currentX)
-  const top = Math.min(boxState.startY, boxState.currentY)
-  const bottom = Math.max(boxState.startY, boxState.currentY)
-  const next = new Set<string>()
-  segments.value.forEach((segment) => {
-    const segLeft = segment.start * pxPerMs.value
-    const segRight = segment.end * pxPerMs.value
-    const segTop = 48
-    const segBottom = segTop + 64
-    const intersects =
-      segLeft < right && segRight > left && segTop < bottom && segBottom > top
-    if (intersects) next.add(segment.id)
-  })
-  selectionIds.value = next
-}
-
-const onBoxUp = () => {
-  if (boxPending.value && !boxState.active) {
-    updatePlayheadFromX(boxState.currentX)
-  }
-  boxState.active = false
-  boxPending.value = false
-  window.removeEventListener('pointermove', onBoxMove)
-  window.removeEventListener('pointerup', onBoxUp)
-}
-
-const handleFile = async (info: unknown) => {
-  const raw =
-    Array.isArray(info) && info.length > 0
-      ? info[0]
-      : (info as { file?: { file?: File; originFile?: File } }).file ??
-        (info as { fileList?: Array<{ file?: File; originFile?: File }> }).fileList?.[0]
-  if (!raw) return
-  const file =
-    raw instanceof File
-      ? raw
-      : raw.file instanceof File
-        ? raw.file
-        : raw.originFile instanceof File
-          ? raw.originFile
-          : null
-  if (!file) return
-  const text = await file.text()
-  importText.value = text
-}
-
-const applyImport = () => {
-  const text = importText.value.trim()
-  if (!text) return
-  const parsed = text.includes('-->')
-    ? parseSrt(text)
-    : text.includes('[') && text.includes(']')
-      ? parseLrc(text)
-      : parsePlainLyrics(text)
-  if (parsed.length === 0) return
-  pushHistorySnapshot(cloneSegments())
-  segments.value = parsed
-  selectionIds.value = new Set([parsed[0].id])
-  importVisible.value = false
-}
-
-const exportText = computed(() => {
-  const ordered = [...segments.value].sort((a, b) => a.start - b.start)
-  return exportFormat.value === 'srt' ? buildSrt(ordered) : buildLrc(ordered)
-})
-
-const copyExport = async () => {
-  try {
-    await navigator.clipboard.writeText(exportText.value)
-  } catch {
-    // ignore clipboard errors
-  }
-}
-
-const downloadExport = () => {
-  const blob = new Blob([exportText.value], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `lyrics.${exportFormat.value}`
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-const pushHistorySnapshot = (snapshot: Segment[]) => {
-  undoStack.value.push(snapshot)
-  redoStack.value = []
-}
-
-const undo = () => {
-  if (undoStack.value.length === 0) return
-  const current = cloneSegments()
-  const previous = undoStack.value.pop()
-  if (!previous) return
-  redoStack.value.push(current)
-  segments.value = previous
-}
-
-const redo = () => {
-  if (redoStack.value.length === 0) return
-  const current = cloneSegments()
-  const next = redoStack.value.pop()
-  if (!next) return
-  undoStack.value.push(current)
-  segments.value = next
-}
-
-const removeSelected = () => {
-  if (selectionIds.value.size === 0) return
-  pushHistorySnapshot(cloneSegments())
-  segments.value = segments.value.filter((segment) => !selectionIds.value.has(segment.id))
-  selectionIds.value = new Set<string>()
-}
-
-const onKeyDown = (event: KeyboardEvent) => {
-  const target = event.target as HTMLElement | null
-  const tag = target?.tagName?.toLowerCase()
-  if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return
-  const key = event.key.toLowerCase()
-  const isMeta = event.metaKey || event.ctrlKey
-  if (key === '=' || key === '+') {
-    event.preventDefault()
-    zoomLevel.value = Math.min(160, zoomLevel.value + 10)
-    return
-  }
-  if (key === '-' || key === '_') {
-    event.preventDefault()
-    zoomLevel.value = Math.max(5, zoomLevel.value - 10)
-    return
-  }
-  if (key === ' ') {
-    event.preventDefault()
-    togglePlay()
-    return
-  }
-  if (isMeta && key === 'z') {
-    event.preventDefault()
-    if (event.shiftKey) {
-      redo()
-    } else {
-      undo()
-    }
-    return
-  }
-  if (key === 'delete' || key === 'backspace') {
-    event.preventDefault()
-    removeSelected()
-  }
-}
-
-const onTimelineWheel = (event: WheelEvent) => {
-  if (!event.ctrlKey) return
-  event.preventDefault()
-  const delta = event.deltaY
-  if (delta === 0) return
-  const step = 5
-  if (delta < 0) {
-    zoomLevel.value = Math.min(160, zoomLevel.value + step)
-  } else {
-    zoomLevel.value = Math.max(5, zoomLevel.value - step)
-  }
-}
-
-onMounted(() => {
-  pushHistorySnapshot(cloneSegments())
-  window.addEventListener('keydown', onKeyDown)
-  nextTick(() => {
-    timelineScrollRef.value?.addEventListener('wheel', onTimelineWheel, { passive: false })
-    headerScrollRef.value?.addEventListener('wheel', onTimelineWheel, { passive: false })
-  })
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeyDown)
-  timelineScrollRef.value?.removeEventListener('wheel', onTimelineWheel)
-  headerScrollRef.value?.removeEventListener('wheel', onTimelineWheel)
-  stopPlay()
-  stopYouTubeTick()
-})
-
-const tickPlay = (ts: number) => {
-  if (!isPlaying.value) return
-  if (!playLastTs) playLastTs = ts
-  const delta = ts - playLastTs
-  playLastTs = ts
-  const next = playheadMs.value + delta
-  const max = timelineDuration.value
-  if (next >= max) {
-    playheadMs.value = max
-    stopPlay()
-    return
-  }
-  playheadMs.value = next
-  ensurePlayheadInView()
-  playRaf = requestAnimationFrame(tickPlay)
-}
-
-const togglePlay = () => {
-  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
-    if (isYouTubePlaying.value) {
-      youtubePlayer.pauseVideo()
-    } else {
-      youtubePlayer.playVideo()
-    }
-    return
-  }
-  if (isPlaying.value) {
-    stopPlay()
-    return
-  }
-  startFakePlay()
-}
-
-const stopPlay = () => {
-  stopFakePlay()
-  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
-    youtubePlayer.pauseVideo()
-    youtubePlayer.seekTo(0, true)
-  }
-  stopYouTubeTick()
-}
-
-const stopFakePlay = () => {
-  isPlaying.value = false
-  playLastTs = 0
-  if (playRaf) cancelAnimationFrame(playRaf)
-  playRaf = 0
-}
-
-const startFakePlay = () => {
-  if (isPlaying.value) return
-  isPlaying.value = true
-  playLastTs = 0
-  playRaf = requestAnimationFrame(tickPlay)
-}
-
-const playSegment = (segment: Segment) => {
-  setSelection(segment.id, false)
-  setPlayheadMs(segment.start)
-  if (youtubeEnabled.value && youtubeReady.value && youtubePlayer) {
-    youtubePlayer.playVideo()
-    return
-  }
-  startFakePlay()
-}
-
-const deleteSegment = (id: string) => {
-  pushHistorySnapshot(cloneSegments())
-  segments.value = segments.value.filter((segment) => segment.id !== id)
-  if (selectionIds.value.has(id)) {
-    const next = new Set(selectionIds.value)
-    next.delete(id)
-    selectionIds.value = next
-  }
-}
-
-const selectSegmentFromList = (segment: Segment) => {
-  setSelection(segment.id, false)
-  setPlayheadMs(segment.start)
-}
-
-const ensurePlayheadInView = () => {
-  if (!timelineScrollRef.value) return
-  if (!autoFollow.value) return
-  const view = timelineScrollRef.value
-  const x = playheadX.value
-  const target = x - view.clientWidth / 2
-  view.scrollLeft = Math.max(0, target)
-}
-
-const buildSrt = (items: Segment[]) => {
-  return items
-    .map((segment, index) => {
-      const start = formatSrtTime(segment.start)
-      const end = formatSrtTime(segment.end)
-      return `${index + 1}\n${start} --> ${end}\n${segment.text}\n`
-    })
-    .join('\n')
-    .trim()
-}
-
-const formatSrtTime = (ms: number) => {
-  const hh = Math.floor(ms / 3600000)
-  const mm = Math.floor((ms % 3600000) / 60000)
-  const ss = Math.floor((ms % 60000) / 1000)
-  const mss = Math.floor(ms % 1000)
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(
-    ss,
-  ).padStart(2, '0')},${String(mss).padStart(3, '0')}`
-}
-
-const buildLrc = (items: Segment[]) => {
-  return items
-    .map((segment) => `${formatLrcTime(segment.start)} ${segment.text}`)
-    .join('\n')
-    .trim()
-}
-
-const formatLrcTime = (ms: number) => {
-  const minutes = Math.floor(ms / 60000)
-  const seconds = Math.floor((ms % 60000) / 1000)
-  const centis = Math.floor((ms % 1000) / 10)
-  return `[${String(minutes).padStart(2, '0')}:${String(seconds).padStart(
-    2,
-    '0',
-  )}.${String(centis).padStart(2, '0')}]`
-}
-
-const parseSrt = (content: string): Segment[] => {
-  const blocks = content
-    .replace(/\r/g, '')
-    .split('\n\n')
-    .map((block) => block.trim())
-    .filter(Boolean)
-  const result: Segment[] = []
-  blocks.forEach((block, index) => {
-    const lines = block.split('\n').map((line) => line.trim())
-    const timeLine = lines.find((line) => line.includes('-->'))
-    if (!timeLine) return
-    const [startRaw, endRaw] = timeLine.split('-->').map((part) => part.trim())
-    const start = parseSrtTime(startRaw)
-    const end = parseSrtTime(endRaw)
-    const textLines = lines.filter((line) => !line.includes('-->') && !/^\d+$/.test(line))
-    const text = textLines.join(' ')
-    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return
-    result.push({
-      id: `srt-${index}-${start}`,
-      start,
-      end,
-      text,
-      color: index % 2 === 0 ? '#2c2f33' : '#db4c3f',
-    })
-  })
-  return result
-}
-
-const parseSrtTime = (raw: string) => {
-  const match = raw.match(/(\d{2}):(\d{2}):(\d{2}),(\d{1,3})/)
-  if (!match) return Number.NaN
-  const [, hh, mm, ss, ms] = match
-  return (
-    Number(hh) * 3600000 +
-    Number(mm) * 60000 +
-    Number(ss) * 1000 +
-    Number(ms.padEnd(3, '0'))
-  )
-}
-
-const parseLrc = (content: string): Segment[] => {
-  const lines = content.replace(/\r/g, '').split('\n')
-  const rows: Array<{ time: number; text: string }> = []
-  lines.forEach((line) => {
-    const matches = [...line.matchAll(/\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g)]
-    if (matches.length === 0) return
-    const lyric = line.replace(/\[.*?\]/g, '').trim()
-    matches.forEach((match) => {
-      const [, mm, ss, ms = '0'] = match
-      const time = parseLrcTime(mm, ss, ms)
-      rows.push({ time, text: lyric })
-    })
-  })
-  rows.sort((a, b) => a.time - b.time)
-  const segments: Segment[] = []
-  rows.forEach((row, index) => {
-    const next = rows[index + 1]
-    const end = next ? Math.max(row.time + minDuration, next.time) : row.time + 2000
-    segments.push({
-      id: `lrc-${index}-${row.time}`,
-      start: row.time,
-      end,
-      text: row.text || `Line ${index + 1}`,
-      color: index % 2 === 0 ? '#2c2f33' : '#db4c3f',
-    })
-  })
-  return segments
-}
-
-const parseLrcTime = (mm: string, ss: string, fraction: string) => {
-  const minutes = Number(mm)
-  const seconds = Number(ss)
-  const msRaw = fraction.trim()
-  const ms =
-    msRaw.length === 0
-      ? 0
-      : msRaw.length === 1
-        ? Number(msRaw) * 100
-        : msRaw.length === 2
-          ? Number(msRaw) * 10
-          : Number(msRaw.slice(0, 3))
-  return minutes * 60000 + seconds * 1000 + ms
-}
-
-const parsePlainLyrics = (content: string): Segment[] => {
-  const lines = content
-    .replace(/\r/g, '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-  if (lines.length === 0) return []
-  const intervalMs = 3000
-  return lines.map((line, index) => {
-    const start = snapValue(index * intervalMs)
-    const end = snapValue(start + intervalMs)
-    return {
-      id: `plain-${index}-${start}`,
-      start,
-      end,
-      text: line,
-      color: index % 2 === 0 ? '#2c2f33' : '#db4c3f',
-    }
-  })
-}
-
-const loadYouTube = async () => {
-  const id = extractYouTubeId(youtubeUrl.value)
-  if (!id) return
-  youtubeVideoId.value = id
-  await nextTick()
-  await loadYouTubeApi()
-  if (youtubePlayer) {
-    youtubePlayer.cueVideoById(id)
-    updateYouTubeDuration()
-    return
-  }
-  youtubePlayer = new window.YT.Player('youtube-player', {
-    videoId: id,
-    playerVars: {
-      autoplay: 0,
-      controls: 1,
-      rel: 0,
-      modestbranding: 1,
-    },
-    events: {
-      onReady: () => {
-        youtubeReady.value = true
-        updateYouTubeDuration()
-      },
-      onStateChange: (event: { data: number }) => {
-        const state = event.data
-        const playing = state === window.YT.PlayerState.PLAYING
-        isYouTubePlaying.value = playing
-        if (playing) {
-          stopFakePlay()
-          updateYouTubeDuration()
-          startYouTubeTick()
-        } else {
-          stopYouTubeTick()
-        }
-      },
-    },
-  })
-}
-
-const extractYouTubeId = (value: string) => {
-  const url = value.trim()
-  if (!url) return ''
-  const short = url.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/)
-  if (short) return short[1]
-  const watch = url.match(/[?&]v=([a-zA-Z0-9_-]{6,})/)
-  if (watch) return watch[1]
-  const embed = url.match(/\/embed\/([a-zA-Z0-9_-]{6,})/)
-  if (embed) return embed[1]
-  if (/^[a-zA-Z0-9_-]{6,}$/.test(url)) return url
-  return ''
-}
-
-const loadYouTubeApi = () => {
-  if (window.YT?.Player) return Promise.resolve()
-  return new Promise<void>((resolve) => {
-    const existing = document.querySelector('script[data-youtube-api]')
-    if (existing) {
-      const prev = window.onYouTubeIframeAPIReady
-      window.onYouTubeIframeAPIReady = () => {
-        prev?.()
-        resolve()
-      }
-      return
-    }
-    const script = document.createElement('script')
-    script.src = 'https://www.youtube.com/iframe_api'
-    script.async = true
-    script.dataset.youtubeApi = '1'
-    window.onYouTubeIframeAPIReady = () => resolve()
-    document.head.appendChild(script)
-  })
-}
-
-const startYouTubeTick = () => {
-  stopYouTubeTick()
-  const step = () => {
-    if (!youtubePlayer || !youtubeEnabled.value) return
-    const current = youtubePlayer.getCurrentTime?.() ?? 0
-    playheadMs.value = current * 1000
-    updateYouTubeDuration()
-    ensurePlayheadInView()
-    youtubeRaf = requestAnimationFrame(step)
-  }
-  youtubeRaf = requestAnimationFrame(step)
-}
-
-const stopYouTubeTick = () => {
-  if (youtubeRaf) cancelAnimationFrame(youtubeRaf)
-  youtubeRaf = 0
-}
-
-const updateYouTubeDuration = () => {
-  if (!youtubePlayer?.getDuration) return
-  const duration = youtubePlayer.getDuration() || 0
-  youtubeDurationMs.value = duration * 1000
-}
-
-declare global {
-  interface Window {
-    YT?: any
-    onYouTubeIframeAPIReady?: () => void
-  }
-}
+const fakePlaying = ref(false)
+const saveState = ref<'saved' | 'saving'>('saved')
+const localFileName = ref('')
+const youtubeInput = ref('')
+const previewRef = ref<HTMLElement | null>(null)
+const audioRef = ref<HTMLAudioElement | null>(null)
+const youtubeMount = ref<HTMLElement | null>(null)
+const toast = ref({ visible: false, message: '', tone: 'info' as 'info' | 'success' | 'error' })
+const statusMessage = ref('')
+const undoStack = ref<LyricLine[][]>([])
+const redoStack = ref<LyricLine[][]>([])
+let toastTimer = 0
+let fakeRaf = 0
+let fakeLastTs = 0
+const media = useMediaController()
+const tabs = [{ value: 'edit' as Tab, number: '01', label: '編輯歌詞文字' }, { value: 'sync' as Tab, number: '02', label: '製作時間同步' }, { value: 'preview' as Tab, number: '03', label: '動態歌詞預覽' }]
+const mediaOptions: Array<{ value: MediaMode; label: string }> = [{ value: 'none', label: '無媒體' }, { value: 'youtube', label: 'YouTube' }, { value: 'local', label: '本機音檔' }]
+const orderedLines = computed(() => sortLinesForDisplay(project.value.lines))
+const timedLines = computed(() => orderedLines.value.filter(isTimedLine))
+const activePlaybackLine = computed(() => timedLines.value.find((line) => playheadMs.value >= line.startMs && playheadMs.value <= line.endMs))
+const isPlaying = computed(() => fakePlaying.value || media.isPlaying.value)
+const durationMs = computed(() => Math.max(Math.max(0, ...timedLines.value.map((line) => line.endMs)), media.durationMs.value, 1000))
+const exportText = computed(() => exportFormat.value === 'lrc' ? buildLrc(project.value.lines, project.value.metadata) : buildSrt(project.value.lines))
+
+const showStatus = (message: string, tone: 'info' | 'success' | 'error' = 'info') => { toast.value = { visible: true, message, tone }; statusMessage.value = message; window.clearTimeout(toastTimer); toastTimer = window.setTimeout(() => { toast.value.visible = false }, 3200) }
+const recordHistory = (before = cloneLines(project.value.lines)) => { undoStack.value.push(cloneLines(before)); redoStack.value = [] }
+const undo = () => { const previous = undoStack.value.pop(); if (!previous) return; redoStack.value.push(cloneLines(project.value.lines)); project.value.lines = cloneLines(previous); selectionIds.value = new Set(); showStatus('已復原上一個編輯') }
+const redo = () => { const next = redoStack.value.pop(); if (!next) return; undoStack.value.push(cloneLines(project.value.lines)); project.value.lines = cloneLines(next); selectionIds.value = new Set(); showStatus('已重做編輯') }
+const switchTab = (tab: Tab) => { if (currentTab.value === 'edit' && tab !== 'edit') syncEditorTextToProject(); if (tab === 'edit') editableText.value = buildLrc(project.value.lines, project.value.metadata); currentTab.value = tab }
+const syncEditorTextToProject = () => { const parsed = parseLyrics(editableText.value); const oldMetadata = project.value.metadata; project.value.lines = parsed.lines; project.value.metadata = parsed.format === 'txt' ? { ...oldMetadata } : parsed.metadata; project.value.activeLineId = parsed.lines[0]?.id ?? null; selectionIds.value = new Set(parsed.lines[0] ? [parsed.lines[0].id] : []) }
+const getLine = (id: string) => project.value.lines.find((line) => line.id === id)
+const selectLine = (line: LyricLine) => { project.value.activeLineId = line.id; selectionIds.value = new Set([line.id]); if (line.startMs !== null) setPlayhead(line.startMs) }
+const isLinePlaying = (line: LyricLine) => line.startMs !== null && line.endMs !== null && playheadMs.value >= line.startMs && playheadMs.value < line.endMs
+const updateLineStart = (id: string, value: string) => { const line = getLine(id); if (!line) return; recordHistory(); if (!value.trim()) { line.startMs = null; line.endMs = null; return }; const start = Number(value) * 1000; if (!Number.isFinite(start)) return; line.startMs = Math.max(0, Math.round(start)); line.endMs = Math.max(line.startMs + 300, line.endMs ?? line.startMs + 3000) }
+const updateLineEnd = (id: string, value: string) => { const line = getLine(id); if (!line || line.startMs === null) return; recordHistory(); const end = Number(value) * 1000; line.endMs = Number.isFinite(end) ? Math.max(line.startMs + 300, Math.round(end)) : line.startMs + 3000 }
+const textSnapshots = new Map<string, LyricLine[]>()
+const beginTextEdit = (id: string) => { if (!textSnapshots.has(id)) textSnapshots.set(id, cloneLines(project.value.lines)) }
+const updateLineText = (id: string, event: Event) => { const line = getLine(id); if (line) line.text = (event.target as HTMLTextAreaElement).value }
+const finishTextEdit = (id: string) => { const before = textSnapshots.get(id); if (before && JSON.stringify(before) !== JSON.stringify(project.value.lines)) recordHistory(before); textSnapshots.delete(id) }
+const stampLine = (id: string) => { const line = getLine(id); if (!line) return; recordHistory(); line.startMs = Math.max(0, Math.round(playheadMs.value / 10) * 10); line.endMs = Math.max(line.startMs + 300, line.endMs ?? line.startMs + 3000); project.value.activeLineId = id; selectionIds.value = new Set([id]); showStatus('已完成歌詞打點', 'success') }
+const stampActiveLine = () => { const lineIndex = project.value.lines.findIndex((line) => line.id === project.value.activeLineId); const targetIndex = lineIndex >= 0 ? lineIndex : 0; const target = project.value.lines[targetIndex]; if (!target) return; stampLine(target.id); if (project.value.lines[targetIndex + 1]) project.value.activeLineId = project.value.lines[targetIndex + 1].id }
+const clearLineStamp = (id: string) => { const line = getLine(id); if (!line || line.startMs === null) return; recordHistory(); line.startMs = null; line.endMs = null; showStatus('已清除該行時間') }
+const resetTimestamps = () => { if (!project.value.lines.some((line) => line.startMs !== null) || !window.confirm('確定要清除所有歌詞時間嗎？')) return; recordHistory(); project.value.lines = project.value.lines.map((line) => ({ ...line, startMs: null, endMs: null })); project.value.activeLineId = project.value.lines[0]?.id ?? null; showStatus('已重設所有時間') }
+const clearLyrics = () => { if (!window.confirm('確定要清空目前歌詞嗎？')) return; recordHistory(); project.value.lines = []; project.value.metadata = { title: '', artist: '', album: '' }; project.value.activeLineId = null; editableText.value = ''; showStatus('已清空歌詞') }
+const onTimelineLinesUpdate = (lines: LyricLine[]) => { project.value.lines = cloneLines(lines); if (!project.value.lines.some((line) => line.id === project.value.activeLineId)) project.value.activeLineId = sortLinesForDisplay(project.value.lines)[0]?.id ?? null; const ids = new Set(lines.map((line) => line.id)); selectionIds.value = new Set([...selectionIds.value].filter((id) => ids.has(id))) }
+const setPlayhead = (value: number) => { playheadMs.value = Math.max(0, Math.min(Math.round(value), durationMs.value)); if (media.mode.value !== 'none') media.seek(playheadMs.value) }
+const startFake = () => { if (fakePlaying.value) return; fakePlaying.value = true; fakeLastTs = 0; fakeRaf = requestAnimationFrame(tickFake) }
+const tickFake = (ts: number) => { if (!fakePlaying.value) return; if (!fakeLastTs) fakeLastTs = ts; playheadMs.value += ts - fakeLastTs; fakeLastTs = ts; if (playheadMs.value >= durationMs.value) { playheadMs.value = durationMs.value; stopFake(); return }; fakeRaf = requestAnimationFrame(tickFake) }
+const stopFake = () => { fakePlaying.value = false; fakeLastTs = 0; if (fakeRaf) cancelAnimationFrame(fakeRaf); fakeRaf = 0 }
+const togglePlayback = async () => { if (media.mode.value === 'none') { fakePlaying.value ? stopFake() : startFake(); return }; if (media.mode.value === 'youtube' && !media.youtubeVideoId.value) { showStatus('請先載入 YouTube 影片', 'error'); return }; if (media.mode.value === 'local' && !audioRef.value?.src) { showStatus('請先選擇本機音檔', 'error'); return }; await media.toggle() }
+const stopPlayback = () => { stopFake(); media.stop(); playheadMs.value = 0 }
+const seekTo = (value: number) => setPlayhead(value)
+const skipPlayback = (seconds: number) => seekTo(playheadMs.value + seconds * 1000)
+const adjustPlaybackRate = (delta: number) => { project.value.playbackRate = Math.max(0.5, Math.min(2, Math.round((project.value.playbackRate + delta) * 10) / 10)); media.setPlaybackRate(project.value.playbackRate) }
+const selectMediaMode = (mode: MediaMode) => { stopPlayback(); media.setMode(mode); if (mode === 'none') showStatus('已切換為無媒體模式') }
+const extractYouTubeId = (value: string) => { const url = value.trim(); const short = url.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/); const watch = url.match(/[?&]v=([a-zA-Z0-9_-]{6,})/); const embed = url.match(/\/embed\/([a-zA-Z0-9_-]{6,})/); return short?.[1] ?? watch?.[1] ?? embed?.[1] ?? (/^[a-zA-Z0-9_-]{6,}$/.test(url) ? url : '') }
+const loadYouTubeVideo = async () => { const id = extractYouTubeId(youtubeInput.value); if (!id) { showStatus('請輸入有效的 YouTube 網址', 'error'); return }; media.setMode('youtube'); media.youtubeVideoId.value = id; await nextTick(); media.youtubeElement.value = youtubeMount.value; if (await media.loadYouTube(youtubeInput.value)) showStatus('YouTube 影片已載入', 'success') }
+const handleAudioUpload = (event: Event) => { const file = (event.target as HTMLInputElement).files?.[0]; if (!file) return; localFileName.value = file.name; media.loadLocalFile(file); showStatus('已載入 ' + file.name, 'success') }
+const handleImportFile = async (event: Event) => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) importText.value = await file.text() }
+const applyImport = () => { const content = importText.value.trim(); if (!content) return; const parsed = parseLyrics(content); recordHistory(); project.value.lines = parsed.lines; if (parsed.format !== 'txt') project.value.metadata = parsed.metadata; project.value.activeLineId = parsed.lines[0]?.id ?? null; editableText.value = buildLrc(project.value.lines, project.value.metadata); importVisible.value = false; showStatus('已匯入 ' + parsed.lines.length + ' 行歌詞', 'success') }
+const openExport = () => { if (currentTab.value === 'edit') syncEditorTextToProject(); exportVisible.value = true }
+const copyExport = async () => { try { await navigator.clipboard.writeText(exportText.value); showStatus('已複製匯出內容', 'success') } catch { showStatus('無法存取剪貼簿，請直接選取文字複製', 'error') } }
+const downloadExport = () => { const blob = new Blob([exportText.value], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = (project.value.metadata.title.trim() || 'lyrics') + '.' + exportFormat.value; link.click(); URL.revokeObjectURL(url); showStatus('已下載 ' + link.download, 'success') }
+const onGlobalKeydown = (event: KeyboardEvent) => { if (currentTab.value !== 'sync' || syncView.value !== 'list') return; const tag = (event.target as HTMLElement | null)?.tagName?.toLowerCase(); if (tag === 'input' || tag === 'textarea') return; if ((event.ctrlKey || event.metaKey) && event.code === 'KeyZ') { event.preventDefault(); event.shiftKey ? redo() : undo(); return } else if (event.code === 'Space') { event.preventDefault(); event.shiftKey ? togglePlayback() : stampActiveLine() } else if (event.code === 'Enter') { event.preventDefault(); if (project.value.activeLineId) clearLineStamp(project.value.activeLineId) } else if (event.code === 'ArrowUp' || event.code === 'ArrowDown') { event.preventDefault(); const index = orderedLines.value.findIndex((line) => line.id === project.value.activeLineId); const next = orderedLines.value[Math.max(0, Math.min(index + (event.code === 'ArrowUp' ? -1 : 1), orderedLines.value.length - 1))]; if (next) { project.value.activeLineId = next.id; document.getElementById('sync-line-' + next.id)?.scrollIntoView({ block: 'nearest' }) } } }
+watch(project, () => { saveState.value = 'saving'; saveProject(project.value); window.setTimeout(() => { saveState.value = 'saved' }, 180) }, { deep: true })
+watch(() => media.currentTimeMs.value, (value) => { if (media.mode.value !== 'none') playheadMs.value = value })
+watch(() => media.isPlaying.value, (playing) => { if (playing) stopFake() })
+watch(() => project.value.playbackRate, (rate) => media.setPlaybackRate(rate), { immediate: true })
+watch(() => activePlaybackLine.value?.id, (id) => { if (id && currentTab.value === 'preview') document.getElementById('preview-line-' + id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }) })
+watch(audioRef, (element) => media.attachAudio(element), { immediate: true })
+onMounted(() => { undoStack.value.push(cloneLines(project.value.lines)); window.addEventListener('keydown', onGlobalKeydown) })
+onBeforeUnmount(() => { window.removeEventListener('keydown', onGlobalKeydown); stopFake() })
 </script>
-

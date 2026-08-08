@@ -1,58 +1,36 @@
-# Lyric Timeline Editor
+# Lyric Sync Editor
 
-A Vue 3 + TypeScript lyric timeline editor with drag/resize, multi-select, SRT/LRC import, and YouTube sync.
-
-Live Demo: https://gene891212.github.io/lyric-timeline-editor/
+A Vue 3 + TypeScript + Vite lyric editor that keeps the original Lyric Sync Editor workflow and adds an optional timeline editing view.
 
 ## Features
-- Drag, resize, multi-select, and snap editing on a timeline
-- Import SRT/LRC or plain text (one line per lyric)
-- Export to SRT or LRC
-- Optional YouTube sync for timeline playback
-- Left-side lyric list with inline time/text editing
 
-## Usage
-1. Click **Import SRT/LRC** to upload an SRT/LRC file or paste text (one line per lyric).
-2. Drag segments to move or resize them.
-3. Use the left list to edit times/text, play a segment, or delete it.
-4. Paste a YouTube URL and click **Load** to sync with video time.
-5. Click **Export** to copy or download SRT/LRC.
+- Three original tabs: lyric text editing, timing sync, and dynamic preview.
+- List-first timing workflow with Space stamping, Shift+Space playback, seeking, speed control, and keyboard navigation.
+- Timeline view with segment move/resize, 10ms snapping, zoom, multi-select, box selection, double-click insertion, playhead dragging, follow mode, overlap resolution, Delete, and Undo/Redo.
+- LRC, SRT, and plain-text import.
+- LRC/SRT export, copy, and download.
+- YouTube, local audio, and no-media modes through one media controller.
+- Versioned localStorage project persistence with migration from lyric_editor_save.
+- Local audio files stay in the current browser session and are never stored in localStorage.
+- No backend, account, cloud sync, or collaboration layer.
 
-## Tech Stack
-- Vue 3 + TypeScript
-- Arco Design Vue
+## Tech stack
+
+- Vue 3
+- TypeScript
 - Vite
-- pnpm
-
-## Project Structure
-- `src/App.vue`: Main UI and timeline logic
-- `src/styles.css`: Global styles
-- `src/main.ts`: App bootstrap
-- `index.html`: Vite entry
+- Vitest
+- Native HTML controls with project CSS; Arco Design is not used by the integrated app.
 
 ## Setup
-```bash
-pnpm install
-```
 
-## Development
-```bash
-pnpm dev
-```
+    pnpm install
+    pnpm dev
 
-## Build
-```bash
-pnpm build
-```
+## Verification
 
-## Preview
-```bash
-pnpm preview
-```
+    pnpm exec tsc --noEmit
+    pnpm test
+    pnpm build
 
-## Shortcuts
-- Space: Play/Pause
-- + / -: Zoom In/Out
-- Ctrl/Cmd + Z: Undo
-- Shift + Ctrl/Cmd + Z: Redo
-- Delete / Backspace: Delete segment
+The integrated app lives in D:\code\lyric-timeline-editor. The original baseline at D:\code\lyrics-sync-editor is kept unchanged.
