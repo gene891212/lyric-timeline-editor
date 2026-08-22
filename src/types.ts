@@ -35,8 +35,7 @@ export const createLineId = (prefix = 'line') => {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export const cloneLines = (lines: LyricLine[]): LyricLine[] =>
-  lines.map((line) => ({ ...line }))
+export const cloneLines = (lines: LyricLine[]): LyricLine[] => lines.map((line) => ({ ...line }))
 
 export const cloneProject = (project: Project): Project => ({
   ...project,

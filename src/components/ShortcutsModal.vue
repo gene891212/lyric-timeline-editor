@@ -9,10 +9,26 @@
         <button class="modal-close" type="button" @click="close">×</button>
       </div>
       <div class="guide-grid">
-        <article><span class="guide-number">01</span><h3>輸入歌詞</h3><p>貼上純文字、LRC 或 SRT。</p></article>
-        <article><span class="guide-number">02</span><h3>同步時間</h3><p>列表適合逐行打點，時間軸適合微調。</p></article>
-        <article><span class="guide-number">03</span><h3>接上媒體</h3><p>支援 YouTube、本機音檔與無媒體預覽。</p></article>
-        <article><span class="guide-number">04</span><h3>輸出成果</h3><p>匯出 LRC 或 SRT 並下載。</p></article>
+        <article>
+          <span class="guide-number">01</span>
+          <h3>輸入歌詞</h3>
+          <p>貼上純文字、LRC 或 SRT。</p>
+        </article>
+        <article>
+          <span class="guide-number">02</span>
+          <h3>同步時間</h3>
+          <p>列表適合逐行打點，時間軸適合微調。</p>
+        </article>
+        <article>
+          <span class="guide-number">03</span>
+          <h3>接上媒體</h3>
+          <p>支援 YouTube、本機音檔與無媒體預覽。</p>
+        </article>
+        <article>
+          <span class="guide-number">04</span>
+          <h3>輸出成果</h3>
+          <p>匯出 LRC 或 SRT 並下載。</p>
+        </article>
       </div>
       <div class="guide-shortcuts">
         <div><kbd>Space</kbd><span>列表打點 / 時間軸播放</span></div>
@@ -74,17 +90,15 @@ const close = () => emit('update:visible', false)
   font-size: 12px;
 }
 
-@media(max-width:620px) {
+@media (max-width: 620px) {
   .guide-grid {
     grid-template-columns: 1fr;
   }
-
 }
 
 @media (max-width: 720px) {
   .guide-grid {
     grid-template-columns: 1fr;
   }
-
 }
 </style>

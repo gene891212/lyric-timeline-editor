@@ -2,7 +2,12 @@
   <div class="preview-shell">
     <div class="preview-controls">
       <button class="skip-btn" type="button" @click="emit('skip', -5)">← 5s</button>
-      <button class="play-btn play-btn-lg" type="button" :aria-label="isPlaying ? '暫停' : '播放'" @click="emit('toggle-play')">
+      <button
+        class="play-btn play-btn-lg"
+        type="button"
+        :aria-label="isPlaying ? '暫停' : '播放'"
+        @click="emit('toggle-play')"
+      >
         <Pause v-if="isPlaying" :size="22" fill="currentColor" />
         <Play v-else :size="22" fill="currentColor" />
       </button>
@@ -23,7 +28,9 @@
         :class="{ 'is-active': activeLineId === line.id }"
         type="button"
         @click="emit('seek', line.startMs ?? 0)"
-      >{{ line.text || '空白行' }}</button>
+      >
+        {{ line.text || '空白行' }}
+      </button>
     </div>
   </div>
 </template>
@@ -126,7 +133,15 @@ const emit = defineEmits<{
   padding: 80px var(--sp-4);
   border: 1px solid var(--border-1);
   border-radius: var(--r-3);
-  background: linear-gradient(180deg, #fff 0%, rgba(255, 255, 255, 0) 12%, rgba(255, 255, 255, 0) 88%, #fff 100%), var(--bg-2);
+  background:
+    linear-gradient(
+      180deg,
+      #fff 0%,
+      rgba(255, 255, 255, 0) 12%,
+      rgba(255, 255, 255, 0) 88%,
+      #fff 100%
+    ),
+    var(--bg-2);
   text-align: center;
 }
 

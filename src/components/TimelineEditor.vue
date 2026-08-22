@@ -48,7 +48,10 @@
             v-for="(line, index) in orderedSegments"
             :key="line.id"
             class="timeline-segment"
-            :class="{ 'is-selected': props.selectionIds.has(line.id), 'is-playing': isSegmentPlaying(line) }"
+            :class="{
+              'is-selected': props.selectionIds.has(line.id),
+              'is-playing': isSegmentPlaying(line),
+            }"
             :style="segmentStyle(line)"
             @pointerdown="startDrag($event, line, 'move')"
           >
@@ -148,19 +151,15 @@ const snapIndicator = reactive({ active: false, x: 0 })
 
 const timedLines = computed(() => updateDerivedEndTimes(props.lines).filter(isTimedLine))
 const orderedSegments = computed(() => timedLines.value)
-const activeSegment = computed(() =>
-  orderedSegments.value.find(
-    (line) => props.playheadMs >= line.startMs && props.playheadMs <= line.endMs,
-  ),
-)
-const activeText = computed(() => activeSegment.value?.text ?? '')
 const pxPerMs = computed(() => props.zoomLevel / 1000)
 const playheadX = computed(() => props.playheadMs * pxPerMs.value)
 const timelineDuration = computed(() => {
   const maxEnd = Math.max(0, ...timedLines.value.map((line) => line.endMs))
   return Math.max(maxEnd, props.mediaDurationMs)
 })
-const timelineWidth = computed(() => Math.max(900, Math.round(timelineDuration.value * pxPerMs.value + 420)))
+const timelineWidth = computed(() =>
+  Math.max(900, Math.round(timelineDuration.value * pxPerMs.value + 420)),
+)
 const gridStepPx = computed(() => Math.max(26, Math.round(pxPerMs.value * 1000)))
 const tickStepMs = computed(() => {
   const target = 100 / pxPerMs.value
@@ -252,24 +251,35 @@ const getMoveSnapOffset = (baseOffset: number, items: DragItem[], excludeIds: Se
   }
 }
 
-const isSegmentPlaying = (line: LyricLine) => line.startMs !== null && line.endMs !== null && props.playheadMs >= line.startMs && props.playheadMs < line.endMs
+const isSegmentPlaying = (line: LyricLine) =>
+  line.startMs !== null &&
+  line.endMs !== null &&
+  props.playheadMs >= line.startMs &&
+  props.playheadMs < line.endMs
 
-const segmentStyle = (line: LyricLine) => ({
-  left: `${line.startMs * pxPerMs.value}px`,
-  width: `${Math.max((line.endMs - line.startMs) * pxPerMs.value, 16)}px`,
-  '--segment-hue': 'var(--lx-navy-100)',
-} as Record<string, string>)
+const segmentStyle = (line: LyricLine) =>
+  ({
+    left: `${line.startMs * pxPerMs.value}px`,
+    width: `${Math.max((line.endMs - line.startMs) * pxPerMs.value, 16)}px`,
+    '--segment-hue': 'var(--lx-navy-100)',
+  }) as Record<string, string>
 
 const startDrag = (event: PointerEvent, line: LyricLine, mode: DragMode) => {
   if (event.button !== 0 || !isTimedLine(line)) return
   const alreadySelected = props.selectionIds.has(line.id)
   if (event.shiftKey) setSelection(line.id, true)
   else if (!alreadySelected) setSelection(line.id)
-  const ids = Array.from(event.shiftKey || alreadySelected ? props.selectionIds : new Set([line.id]))
+  const ids = Array.from(
+    event.shiftKey || alreadySelected ? props.selectionIds : new Set([line.id]),
+  )
   const items = timedLines.value
     .filter((candidate) => ids.includes(candidate.id))
     .map((candidate) => ({ id: candidate.id, startMs: candidate.startMs, endMs: candidate.endMs }))
-  dragState.value = { mode, originX: event.clientX, items: items.length ? items : [{ id: line.id, startMs: line.startMs, endMs: line.endMs }] }
+  dragState.value = {
+    mode,
+    originX: event.clientX,
+    items: items.length ? items : [{ id: line.id, startMs: line.startMs, endMs: line.endMs }],
+  }
   dragSnapshot.value = snapshot()
   hasPendingDrag.value = false
   try {
@@ -292,10 +302,12 @@ const onPointerMove = (event: PointerEvent) => {
     const snappedMove = getMoveSnapOffset(rawOffset, current.items, excludeIds)
     const minStart = Math.min(...current.items.map((item) => item.startMs))
     const offset = Math.max(snappedMove.offset, -minStart)
-    emitLines(props.lines.map((line) => {
-      const item = current.items.find((candidate) => candidate.id === line.id)
-      return item ? { ...line, startMs: item.startMs + offset, endMs: item.endMs + offset } : line
-    }))
+    emitLines(
+      props.lines.map((line) => {
+        const item = current.items.find((candidate) => candidate.id === line.id)
+        return item ? { ...line, startMs: item.startMs + offset, endMs: item.endMs + offset } : line
+      }),
+    )
     snapIndicator.active = snappedMove.snapped
     snapIndicator.x = snappedMove.snapValue * pxPerMs.value
     hasPendingDrag.value = true
@@ -377,7 +389,10 @@ const onBoxMove = (event: PointerEvent) => {
   boxState.currentX = event.clientX - rect.left
   boxState.currentY = event.clientY - rect.top
   if (boxState.pending && !boxState.active) {
-    const distance = Math.hypot(boxState.currentX - boxState.startX, boxState.currentY - boxState.startY)
+    const distance = Math.hypot(
+      boxState.currentX - boxState.startX,
+      boxState.currentY - boxState.startY,
+    )
     if (distance < 4) return
     boxState.pending = false
     boxState.active = true
@@ -512,7 +527,10 @@ const onTimelineWheel = (event: WheelEvent) => {
     0,
     Math.min(event.clientX - scrollTarget.getBoundingClientRect().left, scrollTarget.clientWidth),
   )
-  emit('update:zoomLevel', Math.max(5, Math.min(160, props.zoomLevel + (event.deltaY < 0 ? 5 : -5))))
+  emit(
+    'update:zoomLevel',
+    Math.max(5, Math.min(160, props.zoomLevel + (event.deltaY < 0 ? 5 : -5))),
+  )
 }
 
 const onKeyDown = (event: KeyboardEvent) => {
@@ -539,18 +557,21 @@ const onKeyDown = (event: KeyboardEvent) => {
   }
 }
 
-watch(() => props.zoomLevel, async (nextZoom, previousZoom) => {
-  const view = timelineScrollRef.value
-  if (!view || nextZoom === previousZoom) return
+watch(
+  () => props.zoomLevel,
+  async (nextZoom, previousZoom) => {
+    const view = timelineScrollRef.value
+    if (!view || nextZoom === previousZoom) return
 
-  const anchorX = zoomAnchorX ?? view.clientWidth / 2
-  zoomAnchorX = null
-  const anchorTimeMs = (view.scrollLeft + anchorX) / (previousZoom / 1000)
+    const anchorX = zoomAnchorX ?? view.clientWidth / 2
+    zoomAnchorX = null
+    const anchorTimeMs = (view.scrollLeft + anchorX) / (previousZoom / 1000)
 
-  await nextTick()
-  view.scrollLeft = Math.max(0, anchorTimeMs * (nextZoom / 1000) - anchorX)
-  if (headerScrollRef.value) headerScrollRef.value.scrollLeft = view.scrollLeft
-})
+    await nextTick()
+    view.scrollLeft = Math.max(0, anchorTimeMs * (nextZoom / 1000) - anchorX)
+    if (headerScrollRef.value) headerScrollRef.value.scrollLeft = view.scrollLeft
+  },
+)
 
 watch(
   () => props.playheadMs,
@@ -653,7 +674,13 @@ defineExpose({ resolveOverlaps })
   min-width: 900px;
   min-height: 320px;
   padding-top: 48px;
-  background: repeating-linear-gradient(90deg, rgba(40, 73, 157, .06) 0, rgba(40, 73, 157, .06) 1px, transparent 1px, transparent var(--grid-step, 80px));
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(40, 73, 157, 0.06) 0,
+    rgba(40, 73, 157, 0.06) 1px,
+    transparent 1px,
+    transparent var(--grid-step, 80px)
+  );
   user-select: none;
 }
 
@@ -671,7 +698,7 @@ defineExpose({ resolveOverlaps })
   border-radius: 6px;
   background: var(--segment-hue, var(--navy-dark));
   color: #fff;
-  box-shadow: 0 8px 18px rgba(17, 33, 75, .18);
+  box-shadow: 0 8px 18px rgba(17, 33, 75, 0.18);
   cursor: grab;
 }
 
@@ -681,7 +708,7 @@ defineExpose({ resolveOverlaps })
 }
 
 .segment-index {
-  color: rgba(255, 255, 255, .55);
+  color: rgba(255, 255, 255, 0.55);
   font: 9px var(--mono);
 }
 
@@ -723,13 +750,13 @@ defineExpose({ resolveOverlaps })
 .timeline-playhead {
   z-index: 5;
   background: var(--violet);
-  box-shadow: 0 0 12px rgba(80, 64, 152, .65);
+  box-shadow: 0 0 12px rgba(80, 64, 152, 0.65);
   pointer-events: auto;
 }
 
 .hover-playhead {
   z-index: 4;
-  background: rgba(17, 33, 75, .3);
+  background: rgba(17, 33, 75, 0.3);
 }
 
 .snap-indicator {
@@ -752,7 +779,7 @@ defineExpose({ resolveOverlaps })
   position: absolute;
   z-index: 7;
   border: 1px dashed var(--violet);
-  background: rgba(80, 64, 152, .12);
+  background: rgba(80, 64, 152, 0.12);
   pointer-events: none;
 }
 
@@ -784,17 +811,19 @@ defineExpose({ resolveOverlaps })
 .timeline-segment {
   z-index: 2;
   min-width: 16px;
-  border: 1px solid rgba(24, 45, 102, .24);
+  border: 1px solid rgba(24, 45, 102, 0.24);
   background: var(--segment-hue, var(--lx-navy-100));
   color: var(--lx-navy-800);
-  box-shadow: 0 4px 10px rgba(17, 33, 75, .10);
+  box-shadow: 0 4px 10px rgba(17, 33, 75, 0.1);
 }
 
 .timeline-segment.is-selected {
   z-index: 4;
   outline: 0;
   border-color: var(--lx-navy-700);
-  box-shadow: inset 0 0 0 2px var(--lx-navy-700), 0 4px 10px rgba(17, 33, 75, .14);
+  box-shadow:
+    inset 0 0 0 2px var(--lx-navy-700),
+    0 4px 10px rgba(17, 33, 75, 0.14);
 }
 
 .timeline-segment:hover {
@@ -813,23 +842,27 @@ defineExpose({ resolveOverlaps })
   z-index: 8;
   width: 2px;
   background: var(--lx-warn);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .86);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.86);
 }
 
 .timeline-segment.is-playing {
   z-index: 3;
   border-color: var(--lx-violet-500);
-  box-shadow: inset 0 0 0 2px var(--lx-violet-400), 0 4px 12px rgba(80, 64, 152, .22);
+  box-shadow:
+    inset 0 0 0 2px var(--lx-violet-400),
+    0 4px 12px rgba(80, 64, 152, 0.22);
 }
 
 .timeline-segment.is-selected.is-playing {
   z-index: 5;
   border-color: var(--lx-violet-500);
-  box-shadow: inset 0 0 0 2px var(--lx-navy-700), 0 0 0 2px var(--lx-violet-400), 0 4px 12px rgba(80, 64, 152, .22);
+  box-shadow:
+    inset 0 0 0 2px var(--lx-navy-700),
+    0 0 0 2px var(--lx-violet-400),
+    0 4px 12px rgba(80, 64, 152, 0.22);
 }
 
 .segment-text {
   font-family: var(--font-lyrics);
 }
 </style>
-

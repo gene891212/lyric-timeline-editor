@@ -12,7 +12,9 @@
         role="tab"
         :aria-selected="media.mode.value === option.value"
         @click="emit('select-mode', option.value)"
-      >{{ option.label }}</button>
+      >
+        {{ option.label }}
+      </button>
     </div>
 
     <div v-if="media.mode.value === 'none'" class="empty-state">
@@ -21,11 +23,23 @@
       <p class="empty-state-note">可隨時切換至 YouTube 或本機音檔配樂</p>
     </div>
 
-    <form v-else-if="media.mode.value === 'youtube'" class="col-gap" @submit.prevent="loadYouTubeVideo">
+    <form
+      v-else-if="media.mode.value === 'youtube'"
+      class="col-gap"
+      @submit.prevent="loadYouTubeVideo"
+    >
       <label class="field-label" for="youtube-url">YouTube 網址</label>
       <div class="row">
-        <input id="youtube-url" v-model="youtubeInput" class="input" type="url" placeholder="貼上 YouTube 網址…" />
-        <button class="btn btn-primary" type="submit">{{ media.isLoading.value ? '載入中' : '載入' }}</button>
+        <input
+          id="youtube-url"
+          v-model="youtubeInput"
+          class="input"
+          type="url"
+          placeholder="貼上 YouTube 網址…"
+        />
+        <button class="btn btn-primary" type="submit">
+          {{ media.isLoading.value ? '載入中' : '載入' }}
+        </button>
       </div>
       <div class="yt-frame">
         <div ref="youtubeMount" class="youtube-player"></div>
@@ -48,7 +62,9 @@
       <audio ref="audioRef" class="audio-player" controls></audio>
     </div>
 
-    <p v-if="media.errorMessage.value" class="inline-error" role="alert">{{ media.errorMessage.value }}</p>
+    <p v-if="media.errorMessage.value" class="inline-error" role="alert">
+      {{ media.errorMessage.value }}
+    </p>
   </section>
 </template>
 
@@ -126,7 +142,7 @@ watch(audioRef, (element) => props.media.attachAudio(element), { immediate: true
 .inline-error {
   padding: 8px 10px;
   border-left: 3px solid var(--danger);
-  background: rgba(196, 51, 77, .06);
+  background: rgba(196, 51, 77, 0.06);
   color: var(--danger);
   font-size: 12px;
 }
@@ -168,7 +184,9 @@ watch(audioRef, (element) => props.media.attachAudio(element), { immediate: true
   color: var(--fg-2);
   font-size: var(--fs-12);
   font-weight: 500;
-  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+  transition:
+    background var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
 }
 
 .seg button:hover {
@@ -224,7 +242,7 @@ watch(audioRef, (element) => props.media.attachAudio(element), { immediate: true
 .inline-error {
   padding: 8px 10px;
   border-left: 3px solid var(--danger);
-  background: rgba(196, 51, 77, .06);
+  background: rgba(196, 51, 77, 0.06);
   color: var(--danger);
   font-size: var(--fs-12);
 }

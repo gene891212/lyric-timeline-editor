@@ -17,10 +17,7 @@ export const parseSrtTime = (raw: string): number | null => {
   if (!match) return null
   const [, hh, mm, ss, fraction] = match
   return (
-    Number(hh) * 3600000 +
-    Number(mm) * 60000 +
-    Number(ss) * 1000 +
-    Number(fraction.padEnd(3, '0'))
+    Number(hh) * 3600000 + Number(mm) * 60000 + Number(ss) * 1000 + Number(fraction.padEnd(3, '0'))
   )
 }
 
@@ -30,15 +27,14 @@ export const formatSrtTime = (ms: number): string => {
   const mm = Math.floor((safeMs % 3600000) / 60000)
   const ss = Math.floor((safeMs % 60000) / 1000)
   const mss = safeMs % 1000
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(
-    ss,
-  ).padStart(2, '0')},${String(mss).padStart(3, '0')}`
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(
+    2,
+    '0',
+  )},${String(mss).padStart(3, '0')}`
 }
 
 export const parseLrcTime = (minutes: string, seconds: string, fraction = '') => {
-  const fractionMs = fraction
-    ? Number(fraction.slice(0, 3).padEnd(3, '0'))
-    : 0
+  const fractionMs = fraction ? Number(fraction.slice(0, 3).padEnd(3, '0')) : 0
   return Number(minutes) * 60000 + Number(seconds) * 1000 + fractionMs
 }
 
@@ -210,10 +206,7 @@ export const buildSrt = (lines: LyricLine[]): string => {
     .map((line, index) => {
       const startMs = line.startMs ?? 0
       const nextStart = timed[index + 1]?.startMs ?? undefined
-      const endMs = Math.max(
-        startMs + MIN_DURATION_MS,
-        line.endMs ?? getEndFor(startMs, nextStart),
-      )
+      const endMs = Math.max(startMs + MIN_DURATION_MS, line.endMs ?? getEndFor(startMs, nextStart))
       return `${index + 1}\n${formatSrtTime(startMs)} --> ${formatSrtTime(endMs)}\n${line.text}`
     })
     .join('\n\n')
@@ -231,7 +224,9 @@ export const updateDerivedEndTimes = (lines: LyricLine[]): LyricLine[] => {
   })
 }
 
-export const isTimedLine = (line: LyricLine): line is LyricLine & { startMs: number; endMs: number } =>
+export const isTimedLine = (
+  line: LyricLine,
+): line is LyricLine & { startMs: number; endMs: number } =>
   line.startMs !== null && line.endMs !== null
 
 export const ensureLine = (value: Partial<LyricLine>, index: number): LyricLine => ({

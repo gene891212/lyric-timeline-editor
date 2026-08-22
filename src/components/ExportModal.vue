@@ -11,10 +11,20 @@
         </button>
       </div>
       <div class="format-picker">
-        <button class="format-option" :class="{ 'is-active': format === 'srt' }" type="button" @click="emit('update:format', 'srt')">
+        <button
+          class="format-option"
+          :class="{ 'is-active': format === 'srt' }"
+          type="button"
+          @click="emit('update:format', 'srt')"
+        >
           <FileText :size="14" />SRT
         </button>
-        <button class="format-option" :class="{ 'is-active': format === 'lrc' }" type="button" @click="emit('update:format', 'lrc')">
+        <button
+          class="format-option"
+          :class="{ 'is-active': format === 'lrc' }"
+          type="button"
+          @click="emit('update:format', 'lrc')"
+        >
           <FileText :size="14" />LRC
         </button>
       </div>
@@ -70,7 +80,7 @@ const close = () => emit('update:visible', false)
 .format-option.is-active {
   background: #fff;
   color: var(--navy-dark);
-  box-shadow: 0 1px 3px rgba(17, 33, 75, .1);
+  box-shadow: 0 1px 3px rgba(17, 33, 75, 0.1);
 }
 
 .format-picker {

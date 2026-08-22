@@ -1,7 +1,9 @@
 <template>
   <div class="sync-banner">
     <span class="msg">
-      <template v-if="stampMode === 'lrc'">LRC 單點：按下 <kbd>Space</kbd> 記錄開始時間並跳至下一行。</template>
+      <template v-if="stampMode === 'lrc'"
+        >LRC 單點：按下 <kbd>Space</kbd> 記錄開始時間並跳至下一行。</template
+      >
       <template v-else>SRT 區間：按第一次記錄開始，按第二次記錄結束並跳至下一行。</template>
     </span>
   </div>
@@ -23,10 +25,14 @@
         <span class="line-number">{{ String(index + 1).padStart(2, '0') }}</span>
         <div class="line-time-fields">
           <template v-if="stampMode === 'lrc'">
-            <span class="line-time">{{ line.startMs === null ? '—' : formatClock(line.startMs) }}</span>
+            <span class="line-time">{{
+              line.startMs === null ? '—' : formatClock(line.startMs)
+            }}</span>
           </template>
           <template v-else>
-            <span class="line-time">{{ line.startMs === null ? '—' : formatClock(line.startMs) }}</span>
+            <span class="line-time">{{
+              line.startMs === null ? '—' : formatClock(line.startMs)
+            }}</span>
             <span>→</span>
             <span class="line-time">{{ line.endMs === null ? '—' : formatClock(line.endMs) }}</span>
           </template>
@@ -40,8 +46,12 @@
           class="line-action"
           type="button"
           @click.stop="emit('clear-stamp', line.id)"
-        >清除時間</button>
-        <button class="line-action" type="button" @click.stop="emit('stamp', line.id)">{{ stampButtonLabel(line) }}</button>
+        >
+          清除時間
+        </button>
+        <button class="line-action" type="button" @click.stop="emit('stamp', line.id)">
+          {{ stampButtonLabel(line) }}
+        </button>
       </div>
     </article>
   </div>
@@ -66,7 +76,11 @@ const emit = defineEmits<{
 }>()
 
 const stampButtonLabel = (line: LyricLine) =>
-  props.stampMode === 'lrc' ? '打點' : line.startMs !== null && line.endMs === null ? '結束' : '開始'
+  props.stampMode === 'lrc'
+    ? '打點'
+    : line.startMs !== null && line.endMs === null
+      ? '結束'
+      : '開始'
 </script>
 
 <style scoped>
@@ -108,7 +122,9 @@ const stampButtonLabel = (line: LyricLine) =>
   border-radius: 4px;
   background: #fff;
   cursor: pointer;
-  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+  transition:
+    background var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
 }
 
 .sync-line:hover {
@@ -218,7 +234,9 @@ const stampButtonLabel = (line: LyricLine) =>
   border-radius: var(--r-2);
   background: #fff;
   cursor: pointer;
-  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+  transition:
+    background var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
 }
 
 .sync-line:hover {
@@ -333,14 +351,13 @@ const stampButtonLabel = (line: LyricLine) =>
   font-family: var(--font-lyrics);
 }
 
-@media(max-width:1080px) {
+@media (max-width: 1080px) {
   .line-time-fields {
     display: none;
   }
-
 }
 
-@media(max-width:620px) {
+@media (max-width: 620px) {
   .sync-banner {
     align-items: flex-start;
     flex-direction: column;
@@ -359,7 +376,6 @@ const stampButtonLabel = (line: LyricLine) =>
   .line-number {
     text-align: left;
   }
-
 }
 
 @media (max-width: 720px) {
@@ -371,6 +387,5 @@ const stampButtonLabel = (line: LyricLine) =>
   .line-time-fields {
     display: none;
   }
-
 }
 </style>

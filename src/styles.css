@@ -2,7 +2,7 @@
 
 :root {
   color-scheme: light;
-  font-family: "Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  font-family: 'Inter', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
   --navy: #28499d;
   --navy-dark: #11214b;
   --violet: #504098;
@@ -12,7 +12,7 @@
   --border: #d3d9e4;
   --soft: #f4f6fa;
   --danger: #c4334d;
-  --mono: "JetBrains Mono", Consolas, monospace;
+  --mono: 'JetBrains Mono', Consolas, monospace;
   --lx-navy-50: #eef1f8;
   --lx-navy-100: #d6def0;
   --lx-navy-200: #adbce0;
@@ -43,11 +43,11 @@
   --lx-ink-700: #2a3142;
   --lx-ink-800: #1a2030;
   --lx-ink-900: #0d111c;
-  --shadow-1: 0 1px 2px rgba(17, 33, 75, .06), 0 1px 1px rgba(17, 33, 75, .04);
-  --shadow-2: 0 4px 12px rgba(17, 33, 75, .08), 0 1px 2px rgba(17, 33, 75, .04);
-  --shadow-3: 0 10px 28px rgba(17, 33, 75, .12), 0 2px 4px rgba(17, 33, 75, .06);
-  --ring-focus: 0 0 0 3px rgba(80, 64, 152, .3);
-  --ease-out: cubic-bezier(.2, .7, .2, 1);
+  --shadow-1: 0 1px 2px rgba(17, 33, 75, 0.06), 0 1px 1px rgba(17, 33, 75, 0.04);
+  --shadow-2: 0 4px 12px rgba(17, 33, 75, 0.08), 0 1px 2px rgba(17, 33, 75, 0.04);
+  --shadow-3: 0 10px 28px rgba(17, 33, 75, 0.12), 0 2px 4px rgba(17, 33, 75, 0.06);
+  --ring-focus: 0 0 0 3px rgba(80, 64, 152, 0.3);
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --dur-1: 120ms;
   --fg-1: var(--lx-ink-900);
   --fg-2: var(--lx-ink-600);
@@ -90,13 +90,15 @@
   --r-4: 12px;
   --r-5: 16px;
   --r-pill: 999px;
-  --font-sans: "Inter", "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-han: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Heiti TC", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --fs-12: .75rem;
-  --fs-13: .8125rem;
-  --fs-14: .875rem;
-  --fs-15: .9375rem;
+  --font-sans:
+    'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-han: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-12: 0.75rem;
+  --fs-13: 0.8125rem;
+  --fs-14: 0.875rem;
+  --fs-15: 0.9375rem;
   --fs-16: 1rem;
   --fs-18: 1.125rem;
   --fs-20: 1.25rem;
@@ -110,13 +112,13 @@
   --lh-snug: 1.25;
   --lh-normal: 1.45;
   --lh-loose: 1.65;
-  --tracking-tight: -.02em;
-  --tracking-snug: -.01em;
+  --tracking-tight: -0.02em;
+  --tracking-snug: -0.01em;
   --tracking-normal: 0;
-  --tracking-loose: .04em;
-  --tracking-cap: .12em;
-  --ease-in: cubic-bezier(.6, 0, .8, .2);
-  --ease-inout: cubic-bezier(.5, 0, .2, 1);
+  --tracking-loose: 0.04em;
+  --tracking-cap: 0.12em;
+  --ease-in: cubic-bezier(0.6, 0, 0.8, 0.2);
+  --ease-inout: cubic-bezier(0.5, 0, 0.2, 1);
   --dur-2: 200ms;
   --dur-3: 320ms;
   --dur-4: 480ms;
@@ -152,15 +154,15 @@ textarea {
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-[tabindex="0"]:focus-visible {
+[tabindex='0']:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(80, 64, 152, .24);
+  box-shadow: 0 0 0 3px rgba(80, 64, 152, 0.24);
 }
 
 .content-kicker,
 .empty-kicker {
   font: 700 10px var(--mono);
-  letter-spacing: .13em;
+  letter-spacing: 0.13em;
   color: var(--violet);
 }
 
@@ -174,22 +176,26 @@ textarea:focus-visible,
   border-radius: 4px;
   font-size: 13px;
   font-weight: 500;
-  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+  transition:
+    background var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
 }
 
 .btn-primary {
-  background: var(--navy)!important;
-  color: #fff!important;
+  background: var(--navy) !important;
+  color: #fff !important;
 }
 
 .btn-primary:hover {
-  background: #1f3a82!important;
+  background: #1f3a82 !important;
 }
 
 .btn-secondary {
-  background: #fff!important;
-  border-color: var(--border)!important;
-  color: #182d66!important;
+  background: #fff !important;
+  border-color: var(--border) !important;
+  color: #182d66 !important;
 }
 
 .field-label {
@@ -263,7 +269,7 @@ kbd {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(13, 17, 28, .32);
+  background: rgba(13, 17, 28, 0.32);
   backdrop-filter: blur(4px);
 }
 
@@ -382,7 +388,11 @@ textarea {
   font-size: var(--fs-13);
   font-weight: 500;
   white-space: nowrap;
-  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+  transition:
+    background var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
 }
 
 .btn-primary {
@@ -407,7 +417,7 @@ textarea {
 
 .btn-secondary:hover {
   border-color: var(--lx-ink-300) !important;
-  background: rgba(40, 73, 157, .04) !important;
+  background: rgba(40, 73, 157, 0.04) !important;
 }
 
 .card {
@@ -445,7 +455,9 @@ textarea {
   background: #fff;
   color: var(--fg-1);
   font-size: var(--fs-14);
-  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
 }
 
 .input::placeholder {
@@ -501,12 +513,14 @@ textarea {
   color: var(--fg-3);
   text-align: center;
   cursor: pointer;
-  transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
 }
 
 .drop-zone:hover {
   border-color: var(--lx-navy-500);
-  background: rgba(40, 73, 157, .03);
+  background: rgba(40, 73, 157, 0.03);
 }
 
 .drop-zone input {
@@ -522,7 +536,15 @@ textarea {
   font-weight: 500;
 }
 
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
 
 .play-btn {
   width: 36px;
