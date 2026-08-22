@@ -817,15 +817,6 @@ defineExpose({ resolveOverlaps })
   box-shadow: 0 4px 10px rgba(17, 33, 75, 0.1);
 }
 
-.timeline-segment.is-selected {
-  z-index: 4;
-  outline: 0;
-  border-color: var(--lx-navy-700);
-  box-shadow:
-    inset 0 0 0 2px var(--lx-navy-700),
-    0 4px 10px rgba(17, 33, 75, 0.14);
-}
-
 .timeline-segment:hover {
   border-color: var(--lx-navy-400);
 }
@@ -853,13 +844,13 @@ defineExpose({ resolveOverlaps })
     0 4px 12px rgba(80, 64, 152, 0.22);
 }
 
-.timeline-segment.is-selected.is-playing {
-  z-index: 5;
-  border-color: var(--lx-violet-500);
+.timeline-segment.is-selected {
+  z-index: 4;
+  outline: 0;
+  border-color: var(--lx-navy-700);
   box-shadow:
     inset 0 0 0 2px var(--lx-navy-700),
-    0 0 0 2px var(--lx-violet-400),
-    0 4px 12px rgba(80, 64, 152, 0.22);
+    0 4px 10px rgba(17, 33, 75, 0.14);
 }
 
 .segment-text {

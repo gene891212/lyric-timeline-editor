@@ -6,11 +6,20 @@
           <span class="content-kicker">IMPORT</span>
           <h2 id="import-title">匯入歌詞</h2>
         </div>
-        <button class="modal-close" type="button" @click="close">×</button>
+        <button class="modal-close" type="button" aria-label="關閉匯入視窗" @click="close">
+          <X :size="18" />
+        </button>
       </div>
-      <label class="drop-zone compact-drop" for="import-file">
+      <label
+        class="drop-zone compact-drop"
+        for="import-file"
+        :class="{ 'is-dragover': isDragOver }"
+        @dragover.prevent="isDragOver = true"
+        @dragleave.prevent="isDragOver = false"
+        @drop.prevent="handleDrop"
+      >
         <span class="drop-icon">↥</span>
-        <strong>選擇 LRC、SRT 或 TXT</strong>
+        <strong>選擇或拖入 LRC、SRT 或 TXT</strong>
         <span>也可以直接在下方貼上內容</span>
         <input
           id="import-file"
@@ -24,7 +33,9 @@
         id="import-text"
         v-model="text"
         class="modal-textarea"
-        placeholder="貼上 LRC、SRT 或純文字歌詞。"
+        placeholder="貼上 LRC、SRT 或純文字歌詞，也可以直接拖入檔案。"
+        @dragover.prevent
+        @drop.prevent="handleDrop"
       ></textarea>
       <p class="modal-hint">ⓘ 純文字會保留為未定時歌詞。</p>
       <div class="modal-actions">
@@ -39,6 +50,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { X } from '@lucide/vue'
 
 defineProps<{ visible: boolean }>()
 const emit = defineEmits<{
@@ -47,12 +59,23 @@ const emit = defineEmits<{
 }>()
 
 const text = ref('')
+const isDragOver = ref(false)
 
 const close = () => emit('update:visible', false)
 
+const readFile = async (file: File) => {
+  text.value = await file.text()
+}
+
 const handleFile = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
-  if (file) text.value = await file.text()
+  if (file) await readFile(file)
+}
+
+const handleDrop = async (event: DragEvent) => {
+  isDragOver.value = false
+  const file = event.dataTransfer?.files?.[0]
+  if (file) await readFile(file)
 }
 
 const submit = () => {

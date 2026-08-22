@@ -4,7 +4,7 @@
       <template v-if="stampMode === 'lrc'"
         >LRC 單點：按下 <kbd>Space</kbd> 記錄開始時間並跳至下一行。</template
       >
-      <template v-else>SRT 區間：按第一次記錄開始，按第二次記錄結束並跳至下一行。</template>
+      <template v-else>SRT 區間：按第一次<kbd>Space</kbd>記錄開始，按第二次<kbd>Space</kbd>記錄結束並跳至下一行。</template>
     </span>
   </div>
   <div class="sync-list" aria-label="歌詞同步列表">

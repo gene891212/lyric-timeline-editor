@@ -347,6 +347,7 @@ p {
 }
 
 button {
+  padding: 0;
   border: 0;
   background: none;
   color: inherit;
@@ -518,7 +519,8 @@ textarea {
     background var(--dur-1) var(--ease-out);
 }
 
-.drop-zone:hover {
+.drop-zone:hover,
+.drop-zone.is-dragover {
   border-color: var(--lx-navy-500);
   background: rgba(40, 73, 157, 0.03);
 }

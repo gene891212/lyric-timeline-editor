@@ -6,7 +6,9 @@
           <span class="content-kicker">QUICK GUIDE</span>
           <h2 id="guide-title">使用說明</h2>
         </div>
-        <button class="modal-close" type="button" @click="close">×</button>
+        <button class="modal-close" type="button" aria-label="關閉使用說明" @click="close">
+          <X :size="18" />
+        </button>
       </div>
       <div class="guide-grid">
         <article>
@@ -44,6 +46,8 @@
 </template>
 
 <script setup lang="ts">
+import { X } from '@lucide/vue'
+
 defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ (event: 'update:visible', value: boolean): void }>()
 const close = () => emit('update:visible', false)

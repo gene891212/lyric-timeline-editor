@@ -30,8 +30,10 @@
       </div>
       <textarea class="modal-textarea export-preview" :value="text" readonly></textarea>
       <div class="modal-actions">
-        <button class="btn btn-secondary" type="button" @click="emit('copy')">
-          <Copy :size="15" />複製內容
+        <button class="btn btn-secondary" type="button" @click="handleCopy">
+          <Check v-if="copied" :size="15" /><Copy v-else :size="15" />{{
+            copied ? '已複製' : '複製內容'
+          }}
         </button>
         <button class="btn btn-primary" type="button" @click="emit('download')">
           <Download :size="15" />下載檔案
@@ -42,18 +44,37 @@
 </template>
 
 <script setup lang="ts">
-import { Copy, Download, FileText, X } from '@lucide/vue'
+import { ref } from 'vue'
+import { Check, Copy, Download, FileText, X } from '@lucide/vue'
 import type { ExportFormat } from '../types'
 
-defineProps<{ visible: boolean; format: ExportFormat; text: string }>()
+const props = defineProps<{ visible: boolean; format: ExportFormat; text: string }>()
 const emit = defineEmits<{
   (event: 'update:visible', value: boolean): void
   (event: 'update:format', value: ExportFormat): void
   (event: 'copy'): void
+  (event: 'copy-error'): void
   (event: 'download'): void
 }>()
 
 const close = () => emit('update:visible', false)
+
+const copied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
+
+const handleCopy = async () => {
+  try {
+    await navigator.clipboard.writeText(props.text)
+    copied.value = true
+    emit('copy')
+    clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => {
+      copied.value = false
+    }, 1800)
+  } catch {
+    emit('copy-error')
+  }
+}
 </script>
 
 <style scoped>

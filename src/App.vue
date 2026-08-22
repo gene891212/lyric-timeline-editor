@@ -118,17 +118,30 @@
             <span>直接輸入或貼上歌詞 · 系統會自動辨識 LRC / SRT 並轉換時間軸</span
             ><button class="danger-link" type="button" @click="clearLyrics">⌫ 清空歌詞</button>
           </div>
-          <textarea
-            v-model="editableText"
-            class="textarea"
-            spellcheck="false"
-            placeholder="在此處輸入或貼上歌詞…&#10;&#10;例：&#10;第一行歌詞&#10;第二行歌詞&#10;&#10;支援 LRC 或 SRT 字幕，系統會自動轉換時間軸"
-          ></textarea>
+          <div
+            class="textarea-drop-target"
+            @dragenter.prevent="isLyricsDragOver = true"
+            @dragover.prevent="isLyricsDragOver = true"
+            @dragleave.prevent="isLyricsDragOver = false"
+            @drop.prevent="onLyricsDrop"
+          >
+            <textarea
+              v-model="editableText"
+              class="textarea"
+              spellcheck="false"
+              placeholder="在此處輸入或貼上歌詞…&#10;&#10;例：&#10;第一行歌詞&#10;第二行歌詞&#10;&#10;支援 LRC 或 SRT 字幕，系統會自動轉換時間軸&#10;也可以直接拖入文字檔"
+            ></textarea>
+            <div v-if="isLyricsDragOver" class="drop-zone lyrics-drop-overlay">
+              <span class="drop-icon">↥</span>
+              <strong>放開以匯入 LRC、SRT 或 TXT</strong>
+              <span>拖放歌詞檔案到這裡</span>
+            </div>
+          </div>
         </section>
 
         <section v-else-if="currentTab === 'sync'" class="panel-body">
           <div class="sync-view-guidance">
-            <span class="sync-view-copy">用列表逐行打點，或切換時間軸微調區段起訖。</span>
+            <span class="sync-view-copy">用時間軸微調區段起訖，或切換列表逐行打點。</span>
             <div class="sync-setting-row">
               <div class="sync-mode-switch">
                 <span class="sync-mode-label">同步方式</span>
@@ -290,6 +303,7 @@
       v-model:format="exportFormat"
       :text="exportText"
       @copy="copyExport"
+      @copy-error="copyExportError"
       @download="downloadExport"
     />
     <ShortcutsModal v-model:visible="shortcutsVisible" />
@@ -354,6 +368,7 @@ const currentTab = ref<Tab>('edit')
 const syncView = ref<SyncView>('timeline')
 const stampMode = ref<StampMode>('lrc')
 const editableText = ref(buildSrt(project.value.lines))
+const isLyricsDragOver = ref(false)
 const importVisible = ref(false)
 const exportVisible = ref(false)
 const shortcutsVisible = ref(false)
@@ -494,6 +509,13 @@ const resetTimestamps = () => {
   project.value.activeLineId = project.value.lines[0]?.id ?? null
   showStatus('已重設所有時間')
 }
+const onLyricsDrop = async (event: DragEvent) => {
+  isLyricsDragOver.value = false
+  const file = event.dataTransfer?.files?.[0]
+  if (!file) return
+  editableText.value = await file.text()
+  showStatus('已載入 ' + file.name)
+}
 const clearLyrics = () => {
   if (!window.confirm('確定要清空目前歌詞嗎？')) return
   recordHistory()
@@ -570,7 +592,6 @@ const adjustPlaybackRate = (delta: number) => {
 const selectMediaMode = (mode: MediaMode) => {
   stopPlayback()
   media.setMode(mode)
-  if (mode === 'none') showStatus('已切換為無媒體模式')
 }
 const onImportSubmit = (content: string) => {
   const parsed = parseLyrics(content)
@@ -585,14 +606,8 @@ const openExport = () => {
   if (currentTab.value === 'edit') syncEditorTextToProject()
   exportVisible.value = true
 }
-const copyExport = async () => {
-  try {
-    await navigator.clipboard.writeText(exportText.value)
-    showStatus('已複製匯出內容')
-  } catch {
-    showStatus('無法存取剪貼簿，請直接選取文字複製')
-  }
-}
+const copyExport = () => showStatus('已複製匯出內容')
+const copyExportError = () => showStatus('無法存取剪貼簿，請直接選取文字複製')
 const downloadExport = () => {
   const blob = new Blob([exportText.value], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -920,6 +935,21 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
   font-size: var(--fs-13);
   line-height: 1.75;
+}
+
+.textarea-drop-target {
+  position: relative;
+  width: 100%;
+}
+
+.lyrics-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  justify-content: center;
+  background: var(--bg-2);
+  cursor: default;
+  pointer-events: none;
 }
 
 .label {
@@ -1277,7 +1307,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   text-align: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 12px 16px;
   border: 1px solid var(--border-1);
   border-radius: var(--r-2);
   background: #fff;
@@ -1295,7 +1325,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   overflow: hidden;
   color: var(--fg-2);
-  font-size: var(--fs-15);
+  font-size: var(--fs-18);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
