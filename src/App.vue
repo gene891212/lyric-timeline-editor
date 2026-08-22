@@ -875,7 +875,7 @@ onBeforeUnmount(() => {
 
 .lx-main {
   width: 100%;
-  max-width: 1480px;
+  max-width: 1680px;
   flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
