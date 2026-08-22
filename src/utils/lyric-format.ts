@@ -139,21 +139,27 @@ export const parseLrc = (content: string): ParsedLyrics => {
     })
   })
 
-  timedRows.sort((a, b) => a.timeMs - b.timeMs || a.index - b.index)
-  const timedLines = timedRows.map((row, index) => ({
-    id: makeId('lrc', index, row.timeMs),
-    text: row.text,
-    startMs: row.timeMs,
-    endMs: getEndFor(row.timeMs, timedRows[index + 1]?.timeMs),
-  }))
-  const untimedLines = untimedRows.map((row, index) => ({
-    id: makeId('lrc-text', index, null),
-    text: row.text,
-    startMs: null,
-    endMs: null,
-  }))
+  timedRows.sort((a, b) => a.index - b.index || a.timeMs - b.timeMs)
+  const linesInSourceOrder = [
+    ...timedRows.map((row, index) => ({
+      id: makeId('lrc', index, row.timeMs),
+      text: row.text,
+      startMs: row.timeMs,
+      endMs: getEndFor(row.timeMs, timedRows[index + 1]?.timeMs),
+      sourceIndex: row.index,
+    })),
+    ...untimedRows.map((row, index) => ({
+      id: makeId('lrc-text', index, null),
+      text: row.text,
+      startMs: null,
+      endMs: null,
+      sourceIndex: row.index,
+    })),
+  ]
+    .sort((a, b) => a.sourceIndex - b.sourceIndex)
+    .map(({ sourceIndex: _, ...line }) => line)
 
-  return { format: 'lrc', metadata, lines: [...timedLines, ...untimedLines] }
+  return { format: 'lrc', metadata, lines: linesInSourceOrder }
 }
 
 export const parsePlainLyrics = (content: string): ParsedLyrics => {
@@ -192,14 +198,14 @@ export const buildLrc = (lines: LyricLine[], metadata: Metadata): string => {
   if (metadata.title) output.push(`[ti:${metadata.title}]`)
   if (metadata.artist) output.push(`[ar:${metadata.artist}]`)
   if (metadata.album) output.push(`[al:${metadata.album}]`)
-  sortLinesForDisplay(lines).forEach((line) => {
+  lines.forEach((line) => {
     output.push(line.startMs === null ? line.text : `${formatLrcTime(line.startMs)}${line.text}`)
   })
   return output.join('\n')
 }
 
 export const buildSrt = (lines: LyricLine[]): string => {
-  const timed = sortLinesForDisplay(lines).filter((line) => line.startMs !== null)
+  const timed = lines.filter((line) => line.startMs !== null)
   return timed
     .map((line, index) => {
       const startMs = line.startMs ?? 0
@@ -216,10 +222,10 @@ export const buildSrt = (lines: LyricLine[]): string => {
 export const createLinesFromText = (content: string) => parseLyrics(content).lines
 
 export const updateDerivedEndTimes = (lines: LyricLine[]): LyricLine[] => {
-  const timed = sortLinesForDisplay(lines).filter((line) => line.startMs !== null)
+  const timed = lines.filter((line) => line.startMs !== null)
   return lines.map((line) => {
     if (line.startMs === null) return { ...line, endMs: null }
-    const next = timed.find((candidate) => candidate.startMs !== null && candidate.startMs > line.startMs!)
+    const next = timed[timed.indexOf(line) + 1]
     const fallback = line.endMs ?? getEndFor(line.startMs, next?.startMs ?? undefined)
     return { ...line, endMs: Math.max(line.startMs + MIN_DURATION_MS, fallback) }
   })

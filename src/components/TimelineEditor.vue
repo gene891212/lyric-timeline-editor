@@ -1,38 +1,5 @@
 <template>
   <section class="timeline-editor" aria-label="時間軸編輯器">
-    <div class="timeline-toolbar">
-      <div class="timeline-toolbar-group timeline-transport">
-        <button class="btn btn-primary btn-sm" type="button" @click="emit('toggle-play')">
-          <span class="btn-symbol">{{ props.isPlaying ? 'Ⅱ' : '▶' }}</span>
-          {{ props.isPlaying ? '暫停' : '播放' }}
-        </button>
-        <button class="btn btn-secondary btn-sm" type="button" @click="emit('stop-play')">
-          停止
-        </button>
-        <span class="timecode">{{ formatClock(props.playheadMs) }}</span>
-        <span class="timeline-active-copy">{{ activeText || '尚未播放到歌詞' }}</span>
-      </div>
-
-      <div class="timeline-toolbar-group timeline-actions">
-        <button class="btn btn-quiet btn-sm" type="button" @click="resolveOverlaps">
-          整理重疊
-        </button>
-        <button
-          class="btn btn-quiet btn-sm"
-          type="button"
-          :aria-pressed="props.autoFollow"
-          @click="emit('update:autoFollow', !props.autoFollow)"
-        >
-          跟隨：{{ props.autoFollow ? '開' : '關' }}
-        </button>
-        <label class="zoom-control">
-          <span>縮放</span>
-          <input v-model.number="zoomLevel" type="range" min="5" max="160" step="5" />
-          <output>{{ zoomLevel }}%</output>
-        </label>
-      </div>
-    </div>
-
     <div class="timeline-help">
       <span><kbd>雙擊</kbd> 新增歌詞</span>
       <span><kbd>Shift</kbd> 多選</span>
@@ -81,7 +48,7 @@
             v-for="(line, index) in orderedSegments"
             :key="line.id"
             class="timeline-segment"
-            :class="{ 'is-selected': props.selectionIds.has(line.id) }"
+            :class="{ 'is-selected': props.selectionIds.has(line.id), 'is-playing': isSegmentPlaying(line) }"
             :style="segmentStyle(line)"
             @pointerdown="startDrag($event, line, 'move')"
           >
@@ -125,9 +92,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { cloneLines, createLineId, type LyricLine } from '../types'
-import { formatClock, isTimedLine } from '../utils/lyric-format'
+import { formatClock, isTimedLine, updateDerivedEndTimes } from '../utils/lyric-format'
 
 type DragMode = 'move' | 'resize-start' | 'resize-end'
 type DragItem = { id: string; startMs: number; endMs: number }
@@ -139,6 +106,7 @@ const props = defineProps<{
   isPlaying: boolean
   autoFollow: boolean
   mediaDurationMs: number
+  zoomLevel: number
 }>()
 
 const emit = defineEmits<{
@@ -146,6 +114,7 @@ const emit = defineEmits<{
   (event: 'update:playheadMs', value: number): void
   (event: 'update:selectionIds', value: Set<string>): void
   (event: 'update:autoFollow', value: boolean): void
+  (event: 'update:zoomLevel', value: number): void
   (event: 'history', value: LyricLine[]): void
   (event: 'toggle-play'): void
   (event: 'stop-play'): void
@@ -154,7 +123,6 @@ const emit = defineEmits<{
 const minDuration = 300
 const snapGridMs = 10
 const snapThresholdPx = 8
-const zoomLevel = ref(80)
 const trackRef = ref<HTMLElement | null>(null)
 const timelineScrollRef = ref<HTMLElement | null>(null)
 const headerScrollRef = ref<HTMLElement | null>(null)
@@ -165,6 +133,7 @@ const dragSnapshot = ref<LyricLine[] | null>(null)
 const hasPendingDrag = ref(false)
 const headerDragActive = ref(false)
 let syncingScroll = false
+let zoomAnchorX: number | null = null
 
 const boxState = reactive({
   active: false,
@@ -177,15 +146,15 @@ const boxState = reactive({
 const hoverState = reactive({ active: false, x: 0 })
 const snapIndicator = reactive({ active: false, x: 0 })
 
-const timedLines = computed(() => props.lines.filter(isTimedLine))
-const orderedSegments = computed(() => [...timedLines.value].sort((a, b) => a.startMs - b.startMs))
+const timedLines = computed(() => updateDerivedEndTimes(props.lines).filter(isTimedLine))
+const orderedSegments = computed(() => timedLines.value)
 const activeSegment = computed(() =>
   orderedSegments.value.find(
     (line) => props.playheadMs >= line.startMs && props.playheadMs <= line.endMs,
   ),
 )
 const activeText = computed(() => activeSegment.value?.text ?? '')
-const pxPerMs = computed(() => zoomLevel.value / 1000)
+const pxPerMs = computed(() => props.zoomLevel / 1000)
 const playheadX = computed(() => props.playheadMs * pxPerMs.value)
 const timelineDuration = computed(() => {
   const maxEnd = Math.max(0, ...timedLines.value.map((line) => line.endMs))
@@ -282,6 +251,8 @@ const getMoveSnapOffset = (baseOffset: number, items: DragItem[], excludeIds: Se
     snapValue: bestSnapValue,
   }
 }
+
+const isSegmentPlaying = (line: LyricLine) => line.startMs !== null && line.endMs !== null && props.playheadMs >= line.startMs && props.playheadMs < line.endMs
 
 const segmentStyle = (line: LyricLine) => ({
   left: `${line.startMs * pxPerMs.value}px`,
@@ -536,7 +507,12 @@ const onTrackHoverLeave = () => {
 const onTimelineWheel = (event: WheelEvent) => {
   if (!event.ctrlKey) return
   event.preventDefault()
-  zoomLevel.value = Math.max(5, Math.min(160, zoomLevel.value + (event.deltaY < 0 ? 5 : -5)))
+  const scrollTarget = event.currentTarget as HTMLElement
+  zoomAnchorX = Math.max(
+    0,
+    Math.min(event.clientX - scrollTarget.getBoundingClientRect().left, scrollTarget.clientWidth),
+  )
+  emit('update:zoomLevel', Math.max(5, Math.min(160, props.zoomLevel + (event.deltaY < 0 ? 5 : -5))))
 }
 
 const onKeyDown = (event: KeyboardEvent) => {
@@ -556,12 +532,25 @@ const onKeyDown = (event: KeyboardEvent) => {
     emit('toggle-play')
   } else if (key === '+' || key === '=') {
     event.preventDefault()
-    zoomLevel.value = Math.min(160, zoomLevel.value + 10)
+    emit('update:zoomLevel', Math.min(160, props.zoomLevel + 10))
   } else if (key === '-' || key === '_') {
     event.preventDefault()
-    zoomLevel.value = Math.max(5, zoomLevel.value - 10)
+    emit('update:zoomLevel', Math.max(5, props.zoomLevel - 10))
   }
 }
+
+watch(() => props.zoomLevel, async (nextZoom, previousZoom) => {
+  const view = timelineScrollRef.value
+  if (!view || nextZoom === previousZoom) return
+
+  const anchorX = zoomAnchorX ?? view.clientWidth / 2
+  zoomAnchorX = null
+  const anchorTimeMs = (view.scrollLeft + anchorX) / (previousZoom / 1000)
+
+  await nextTick()
+  view.scrollLeft = Math.max(0, anchorTimeMs * (nextZoom / 1000) - anchorX)
+  if (headerScrollRef.value) headerScrollRef.value.scrollLeft = view.scrollLeft
+})
 
 watch(
   () => props.playheadMs,
@@ -590,4 +579,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onHeaderPointerMove)
   window.removeEventListener('pointerup', onHeaderPointerUp)
 })
+
+defineExpose({ resolveOverlaps })
 </script>
