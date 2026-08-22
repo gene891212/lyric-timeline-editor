@@ -105,3 +105,127 @@ const handleAudioUpload = (event: Event) => {
 
 watch(audioRef, (element) => props.media.attachAudio(element), { immediate: true })
 </script>
+
+<style scoped>
+.youtube-player {
+  position: absolute;
+  inset: 0;
+}
+
+.youtube-player iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.audio-player {
+  width: 100%;
+  height: 34px;
+}
+
+.inline-error {
+  padding: 8px 10px;
+  border-left: 3px solid var(--danger);
+  background: rgba(196, 51, 77, .06);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.title-icon {
+  color: var(--lx-navy-500);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.row .input {
+  flex: 1;
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-2);
+  background: var(--bg-3);
+}
+
+.seg button {
+  padding: 7px 8px;
+  border-radius: 3px;
+  color: var(--fg-2);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.seg button:hover {
+  color: var(--lx-navy-700);
+}
+
+.seg button.is-active {
+  background: #fff;
+  color: var(--lx-navy-800);
+  box-shadow: var(--shadow-1);
+}
+
+.yt-frame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-3);
+  background: var(--lx-ink-100);
+}
+
+.youtube-player {
+  position: absolute;
+  inset: 0;
+}
+
+.youtube-player iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.yt-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--sp-4);
+  color: var(--fg-3);
+  font-size: var(--fs-12);
+  text-align: center;
+}
+
+.url-example {
+  color: var(--lx-ink-400);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.inline-error {
+  padding: 8px 10px;
+  border-left: 3px solid var(--danger);
+  background: rgba(196, 51, 77, .06);
+  color: var(--danger);
+  font-size: var(--fs-12);
+}
+</style>

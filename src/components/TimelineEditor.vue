@@ -582,3 +582,254 @@ onBeforeUnmount(() => {
 
 defineExpose({ resolveOverlaps })
 </script>
+
+<style scoped>
+.timeline-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.timeline-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--subtle);
+  font-size: 10px;
+}
+
+.timeline-stage {
+  min-height: 400px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--soft);
+}
+
+.timeline-scale-scroll {
+  overflow-x: hidden;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  cursor: col-resize;
+}
+
+.timeline-scale {
+  position: relative;
+  height: 43px;
+  min-width: 900px;
+  background: linear-gradient(180deg, #fff, var(--soft));
+}
+
+.scale-tick {
+  position: absolute;
+  top: 10px;
+  width: 1px;
+  height: 8px;
+  background: #b1b9c8;
+}
+
+.scale-tick.is-major {
+  height: 17px;
+  background: var(--muted);
+}
+
+.scale-label {
+  position: absolute;
+  top: 20px;
+  left: 5px;
+  color: var(--subtle);
+  font: 10px var(--mono);
+}
+
+.timeline-scroll {
+  overflow: auto;
+  min-height: 345px;
+}
+
+.timeline-track {
+  position: relative;
+  min-width: 900px;
+  min-height: 320px;
+  padding-top: 48px;
+  background: repeating-linear-gradient(90deg, rgba(40, 73, 157, .06) 0, rgba(40, 73, 157, .06) 1px, transparent 1px, transparent var(--grid-step, 80px));
+  user-select: none;
+}
+
+.timeline-segment {
+  position: absolute;
+  top: 48px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 64px;
+  min-width: 42px;
+  padding: 0 12px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--segment-hue, var(--navy-dark));
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(17, 33, 75, .18);
+  cursor: grab;
+}
+
+.timeline-segment.is-selected {
+  outline: 2px solid var(--lx-violet-400);
+  outline-offset: 2px;
+}
+
+.segment-index {
+  color: rgba(255, 255, 255, .55);
+  font: 9px var(--mono);
+}
+
+.segment-text {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segment-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  cursor: ew-resize;
+}
+
+.segment-handle.is-start {
+  left: -3px;
+}
+
+.segment-handle.is-end {
+  right: -3px;
+}
+
+.timeline-playhead,
+.hover-playhead,
+.snap-indicator {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 2px;
+  pointer-events: none;
+}
+
+.timeline-playhead {
+  z-index: 5;
+  background: var(--violet);
+  box-shadow: 0 0 12px rgba(80, 64, 152, .65);
+  pointer-events: auto;
+}
+
+.hover-playhead {
+  z-index: 4;
+  background: rgba(17, 33, 75, .3);
+}
+
+.snap-indicator {
+  z-index: 6;
+  background: var(--danger);
+}
+
+.hover-time {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--navy-dark);
+  color: #fff;
+  font: 9px var(--mono);
+}
+
+.selection-box {
+  position: absolute;
+  z-index: 7;
+  border: 1px dashed var(--violet);
+  background: rgba(80, 64, 152, .12);
+  pointer-events: none;
+}
+
+.timeline-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.timeline-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--fg-3);
+  font-size: 10px;
+}
+
+.timeline-stage {
+  min-height: 400px;
+  overflow: hidden;
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-3);
+  background: var(--bg-3);
+  user-select: none;
+}
+
+.timeline-segment {
+  z-index: 2;
+  min-width: 16px;
+  border: 1px solid rgba(24, 45, 102, .24);
+  background: var(--segment-hue, var(--lx-navy-100));
+  color: var(--lx-navy-800);
+  box-shadow: 0 4px 10px rgba(17, 33, 75, .10);
+}
+
+.timeline-segment.is-selected {
+  z-index: 4;
+  outline: 0;
+  border-color: var(--lx-navy-700);
+  box-shadow: inset 0 0 0 2px var(--lx-navy-700), 0 4px 10px rgba(17, 33, 75, .14);
+}
+
+.timeline-segment:hover {
+  border-color: var(--lx-navy-400);
+}
+
+.timeline-segment .segment-index {
+  color: var(--lx-navy-500);
+}
+
+.timeline-segment .segment-text {
+  color: var(--lx-navy-800);
+}
+
+.snap-indicator {
+  z-index: 8;
+  width: 2px;
+  background: var(--lx-warn);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .86);
+}
+
+.timeline-segment.is-playing {
+  z-index: 3;
+  border-color: var(--lx-violet-500);
+  box-shadow: inset 0 0 0 2px var(--lx-violet-400), 0 4px 12px rgba(80, 64, 152, .22);
+}
+
+.timeline-segment.is-selected.is-playing {
+  z-index: 5;
+  border-color: var(--lx-violet-500);
+  box-shadow: inset 0 0 0 2px var(--lx-navy-700), 0 0 0 2px var(--lx-violet-400), 0 4px 12px rgba(80, 64, 152, .22);
+}
+
+.segment-text {
+  font-family: var(--font-lyrics);
+}
+</style>
+

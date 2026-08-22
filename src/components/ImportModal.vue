@@ -50,3 +50,15 @@ const submit = () => {
   close()
 }
 </script>
+
+<style scoped>
+.compact-drop {
+  margin-bottom: 17px;
+}
+
+.modal-hint {
+  margin: 9px 0;
+  color: var(--subtle);
+  font-size: 11px;
+}
+</style>

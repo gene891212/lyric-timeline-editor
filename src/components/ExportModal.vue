@@ -45,3 +45,52 @@ const emit = defineEmits<{
 
 const close = () => emit('update:visible', false)
 </script>
+
+<style scoped>
+.format-picker {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--soft);
+}
+
+.format-option {
+  flex: 1;
+  min-height: 29px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.format-option.is-active {
+  background: #fff;
+  color: var(--navy-dark);
+  box-shadow: 0 1px 3px rgba(17, 33, 75, .1);
+}
+
+.format-picker {
+  width: 160px;
+  margin-bottom: 13px;
+}
+
+.export-preview {
+  min-height: 320px;
+}
+
+.format-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.format-option svg {
+  flex: none;
+  stroke-width: 1.8;
+}
+</style>

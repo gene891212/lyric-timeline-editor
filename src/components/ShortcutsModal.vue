@@ -32,3 +32,59 @@ defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ (event: 'update:visible', value: boolean): void }>()
 const close = () => emit('update:visible', false)
 </script>
+
+<style scoped>
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.guide-grid article {
+  padding: 14px;
+  border: 1px solid #e8ecf3;
+  border-radius: 6px;
+  background: var(--soft);
+}
+
+.guide-grid h3 {
+  margin: 8px 0 4px;
+  color: var(--navy-dark);
+  font-size: 14px;
+}
+
+.guide-grid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.guide-shortcuts {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e8ecf3;
+}
+
+.guide-shortcuts div {
+  display: flex;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media(max-width:620px) {
+  .guide-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 720px) {
+  .guide-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+</style>
